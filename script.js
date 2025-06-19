@@ -381,8 +381,7 @@ class TwitchStreamBridge {
                     "express": "^4.18.2",
                     "cors": "^2.8.5",
                     "multer": "^1.4.5-lts.1",
-                    "fluent-ffmpeg": "^2.1.2",
-                    "ws": "^8.14.2"
+                    "fluent-ffmpeg": "^2.1.2"
                 },
                 "devDependencies": {
                     "nodemon": "^3.0.1"
@@ -390,19 +389,18 @@ class TwitchStreamBridge {
             }, null, 2),
 
             'server.js': `const express = require('express');
-const http = require('http');
-const WebSocket = require('ws');
 const cors = require('cors');
+const multer = require('multer');
 const ffmpeg = require('fluent-ffmpeg');
 
 const app = express();
-const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
-
 const port = 3001;
 
 app.use(cors());
 app.use(express.json());
+
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 let ffmpegProcess = null;
 
@@ -427,7 +425,7 @@ app.post('/test-rtmp', (req, res) => {
             responseSent = true;
             clearTimeout(timeout);
             if (testProcess) {
-                testProcess.kill('SIGKILL');
+                try { testProcess.kill('SIGKILL'); } catch(e) { console.error('Error killing test process:', e.message); }
             }
             res.json(data);
         }
@@ -435,14 +433,14 @@ app.post('/test-rtmp', (req, res) => {
 
     const timeout = setTimeout(() => {
         sendResponse({ success: false, error: 'Connection timeout. Check network or firewall.' });
-    }, 8000);
+    }, 10000);
 
     try {
         testProcess = ffmpeg()
-            .input('testsrc=duration=2:size=128x72:rate=10')
+            .input('testsrc=duration=5:size=128x72:rate=10')
             .inputFormat('lavfi')
             .outputOptions([
-                '-t 2', // Attempt to stream for 2 seconds
+                '-t 5',
                 '-f flv'
             ])
             .output(rtmpUrl)
@@ -455,7 +453,7 @@ app.post('/test-rtmp', (req, res) => {
                 if (responseSent) return;
                 console.error('RTMP test failed:', err.message);
                 console.error('ffmpeg stderr:', stderr);
-                sendResponse({ success: false, error: 'Connection failed. Check stream key.' });
+                sendResponse({ success: false, error: 'Connection failed. Check stream key or if you are already live.' });
             });
         
         testProcess.run();
@@ -464,19 +462,19 @@ app.post('/test-rtmp', (req, res) => {
     }
 });
 
-wss.on('connection', (ws, req) => {
-    console.log('WebSocket client connected.');
-
-    const urlParams = new URLSearchParams(req.url.substring(req.url.indexOf('?')));
-    const streamKey = urlParams.get('streamKey');
-    
-    if (!streamKey) {
-        console.error('WebSocket connection failed: Missing stream key');
-        ws.terminate();
-        return;
+// Start the main stream
+app.post('/start-stream', (req, res) => {
+    if (ffmpegProcess) {
+        return res.status(400).json({ success: false, error: 'Stream is already running.' });
     }
 
+    const { streamKey } = req.body;
+    if (!streamKey) {
+        return res.status(400).json({ success: false, error: 'Stream key is required.' });
+    }
     const rtmpUrl = \`rtmp://live.twitch.tv/app/\${streamKey}\`;
+    
+    console.log('Starting stream to:', rtmpUrl);
 
     ffmpegProcess = ffmpeg()
         .input('pipe:0')
@@ -494,33 +492,50 @@ wss.on('connection', (ws, req) => {
             console.error('FFmpeg error:', err.message);
             console.error('ffmpeg stderr:', stderr);
             if (ffmpegProcess) ffmpegProcess.kill('SIGKILL');
-        })
-        .on('end', () => console.log('FFmpeg stream ended.'))
-        .pipe(rtmpUrl, { end: true });
-
-    ws.on('message', (message) => {
-        if (ffmpegProcess && ffmpegProcess.stdin.writable) {
-            ffmpegProcess.stdin.write(message);
-        }
-    });
-
-    ws.on('close', () => {
-        console.log('WebSocket client disconnected.');
-        if (ffmpegProcess) {
-            console.log('Stopping FFmpeg process.');
-            ffmpegProcess.stdin.end();
-            ffmpegProcess.kill('SIGKILL');
             ffmpegProcess = null;
-        }
-    });
+        })
+        .on('end', () => {
+            console.log('FFmpeg stream ended.');
+            ffmpegProcess = null;
+        });
 
-    ws.on('error', (error) => {
-        console.error('WebSocket error:', error);
-    });
+    ffmpegProcess.pipe(rtmpUrl, { end: true });
+    
+    res.json({ success: true, message: 'Stream started.' });
 });
 
-server.listen(port, () => {
-    console.log(\`Twitch Stream Bridge server with WebSocket running on port \${port}\`);
+// Receive stream data chunk
+app.post('/stream-data', upload.single('chunk'), (req, res) => {
+    if (!ffmpegProcess) {
+        return res.status(404).send('Stream not started.');
+    }
+    if (ffmpegProcess.stdin.writable) {
+        ffmpegProcess.stdin.write(req.file.buffer);
+        res.sendStatus(200);
+    } else {
+        res.status(500).send('FFmpeg input stream is not writable.');
+    }
+});
+
+// Stop the stream
+app.post('/stop-stream', (req, res) => {
+    if (ffmpegProcess) {
+        console.log('Stopping FFmpeg process.');
+        try {
+            ffmpegProcess.stdin.end();
+            ffmpegProcess.kill('SIGKILL');
+        } catch(e) {
+            console.error('Error stopping ffmpeg:', e.message);
+        }
+        ffmpegProcess = null;
+        res.json({ success: true, message: 'Stream stopped.' });
+    } else {
+        res.status(400).json({ success: false, error: 'Stream is not running.' });
+    }
+});
+
+app.listen(port, () => {
+    console.log(\`Twitch Stream Bridge server running on port \${port}\`);
 });
 `,
 
