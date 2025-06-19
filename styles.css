@@ -142,6 +142,11 @@ body {
     font-size: 14px;
 }
 
+.form-group input:focus + small {
+    color: #667eea;
+    font-weight: 500;
+}
+
 .audio-options {
     margin-top: 24px;
 }
@@ -473,4 +478,3 @@ body {
         margin-bottom: 20px;
     }
 }
-

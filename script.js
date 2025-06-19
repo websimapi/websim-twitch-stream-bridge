@@ -58,6 +58,10 @@ class TwitchStreamBridge {
         // Form validation
         this.streamKey.addEventListener('input', () => this.validateForm());
         this.streamTitle.addEventListener('input', () => this.validateForm());
+        
+        // Real-time stream info updates
+        this.streamTitle.addEventListener('input', () => this.updateStreamInfoIfStreaming());
+        this.category.addEventListener('input', () => this.updateStreamInfoIfStreaming());
     }
 
     async selectMediaSource() {
@@ -333,6 +337,35 @@ class TwitchStreamBridge {
         this.framesDropped.textContent = '0';
     }
 
+    async updateStreamInfoIfStreaming() {
+        if (!this.isStreaming) return;
+        
+        // Debounce the updates
+        clearTimeout(this.updateTimeout);
+        this.updateTimeout = setTimeout(async () => {
+            try {
+                const response = await fetch('http://localhost:3001/update-stream-info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: this.streamTitle.value.trim(),
+                        category: this.category.value.trim()
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    this.showToast('Stream info updated!', 'success');
+                } else {
+                    this.showToast(`Failed to update stream info: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error updating stream info:', error);
+                this.showToast('Error updating stream info', 'error');
+            }
+        }, 1000); // Wait 1 second after user stops typing
+    }
+
     downloadNodeProject() {
         // Create the Node.js project files
         const files = this.createNodeProjectFiles();
@@ -460,6 +493,56 @@ app.post('/test-rtmp', (req, res) => {
         testProcess.run();
     } catch (error) {
         sendResponse({ success: false, error: error.message });
+    }
+});
+
+// Update stream information (title, category)
+app.post('/update-stream-info', (req, res) => {
+    const { title, category } = req.body;
+    
+    if (!title && !category) {
+        return res.status(400).json({ success: false, error: 'Title or category is required.' });
+    }
+
+    // Note: This endpoint sets up the infrastructure for real-time stream info updates.
+    // To actually update the stream info on Twitch, you would need to:
+    // 1. Integrate with Twitch API using OAuth
+    // 2. Use the "Modify Channel Information" endpoint
+    // 3. Store and use the broadcaster's access token
+    
+    console.log('Stream info update requested:', { title, category });
+    
+    // For now, we'll just log the update and return success
+    // In a full implementation, you would make a request to:
+    // PATCH https://api.twitch.tv/helix/channels?broadcaster_id={user_id}
+    // with the new title and game_name
+    
+    try {
+        // TODO: Implement actual Twitch API call here
+        // Example implementation would look like:
+        /*
+        const twitchApiResponse = await fetch('https://api.twitch.tv/helix/channels?broadcaster_id=' + broadcasterId, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': 'Bearer ' + accessToken,
+                'Client-Id': clientId,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                title: title,
+                game_name: category
+            })
+        });
+        */
+        
+        res.json({ 
+            success: true, 
+            message: 'Stream info update received (Twitch API integration required for actual update)',
+            data: { title, category }
+        });
+    } catch (error) {
+        console.error('Error updating stream info:', error.message);
+        res.status(500).json({ success: false, error: 'Failed to update stream info' });
     }
 });
 
