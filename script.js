@@ -547,6 +547,7 @@ const multer = require('multer');
 const { spawn } = require('child_process');
 const axios = require('axios');
 const path = require('path');
+const ffmpeg = require('fluent-ffmpeg');
 
 const app = express();
 const port = 3001;
@@ -878,7 +879,7 @@ app.post('/stop-stream', (req, res) => {
 app.listen(port, () => {
     console.log(\`Twitch Stream Bridge server running on port \${port}\`);
 });
-`,
+`
 
     'README.md': `# Twitch Stream Bridge
 
