@@ -38,15 +38,24 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="clientId">Twitch Client ID</label>
+                    <input type="text" id="clientId" placeholder="Enter your Twitch application Client ID">
+                    <small>Create an app at <a href="https://dev.twitch.tv/console/apps" target="_blank">dev.twitch.tv/console/apps</a></small>
+                </div>
+
+                <div class="oauth-section" id="oauthSection">
+                    <button id="authorizeBtn" class="btn btn-secondary" style="display: none;">Authorize with Twitch</button>
+                    <div id="authStatus" class="auth-status"></div>
+                </div>
+
+                <div class="form-group">
                     <label for="streamTitle">Stream Title</label>
                     <input type="text" id="streamTitle" placeholder="My Awesome Stream">
-                    <small>Updates automatically while streaming</small>
                 </div>
 
                 <div class="form-group">
                     <label for="category">Category</label>
                     <input type="text" id="category" placeholder="Just Chatting">
-                    <small>Updates automatically while streaming</small>
                 </div>
 
                 <div class="form-row">
