@@ -1005,22 +1005,22 @@ Before you begin, ensure you have the following installed on your system:
 
 1. **Node.js** (v14 or higher)
    - Download from [nodejs.org](https://nodejs.org/)
-   - Verify installation: \`node --version\` and \`npm --version\`
+   - Verify installation: \\\`node --version\\\` and \\\`npm --version\\\`
 
 2. **FFmpeg** (Required for video encoding and streaming)
    
    **Windows:**
    - Download from [ffmpeg.org](https://ffmpeg.org/download.html)
-   - Extract the files and add the \`bin\` folder to your system's PATH environment variable
-   - Verify: Open Command Prompt and run \`ffmpeg -version\`
+   - Extract the files and add the \\\`bin\\\` folder to your system's PATH environment variable
+   - Verify: Open Command Prompt and run \\\`ffmpeg -version\\\`
    
    **macOS:**
-   - Using Homebrew: \`brew install ffmpeg\`
-   - Verify: \`ffmpeg -version\`
+   - Using Homebrew: \\\`brew install ffmpeg\\\`
+   - Verify: \\\`ffmpeg -version\\\`
    
    **Linux (Ubuntu/Debian):**
-   - \`sudo apt update && sudo apt install ffmpeg\`
-   - Verify: \`ffmpeg -version\`
+   - \\\`sudo apt update && sudo apt install ffmpeg\\\`
+   - Verify: \\\`ffmpeg -version\\\`
 
 ### Twitch Requirements
 
@@ -1033,17 +1033,169 @@ Before you begin, ensure you have the following installed on your system:
 3. **Twitch Developer Application** (Optional - for title/category changes)
    - Go to [Twitch Developer Console](https://dev.twitch.tv/console/apps)
    - Click "Register Your Application"
-   - Application Name: \`Your App Name\` (e.g., "My Browser Streamer")
-   - OAuth Redirect URLs: \`http://localhost:3001/oauth/callback\`
+   - Application Name: \\\`Your App Name\\\` (e.g., "My Browser Streamer")
+   - OAuth Redirect URLs: \\\`http://localhost:3001/oauth/callback\\\`
    - Category: "Application Integration"
    - Copy the **Client ID** after creation
 
 ## 🛠️ Installation
 
 1. **Extract the Project**
-   ```bash
-   # Extract the downloaded ZIP file to your desired location
-   cd path/to/twitch-stream-bridge
+   Extract the downloaded ZIP file to your desired location
 
+2. **Install Dependencies**
+   Open terminal/command prompt in the project folder and run:
+   \\\`\\\`\\\`
+   npm install
+   \\\`\\\`\\\`
 
-</edits_to_apply>
+3. **Start the Server**
+   \\\`\\\`\\\`
+   npm start
+   \\\`\\\`\\\`
+
+4. **Open the Web Interface**
+   Open your browser and go to the HTML file or serve it locally
+
+## 🎮 Usage
+
+### Basic Setup
+
+1. **Configure Stream Settings**
+   - Enter your Twitch Stream Key
+   - Set your preferred stream title
+   - Choose quality and frame rate settings
+
+2. **Select Screen/Tab to Capture**
+   - Click "Select Screen/Tab" button
+   - Choose what you want to stream from the browser picker
+   - Configure audio options (system audio, microphone, or both)
+
+3. **Test Connection**
+   - Click "Test Connection" to verify your stream key works
+   - Wait for confirmation
+
+4. **Start Streaming**
+   - Click "Start Stream" to begin broadcasting
+   - Monitor stream statistics in real-time
+   - Click "Stop Stream" when finished
+
+### Advanced Features
+
+#### Stream Title & Category Management
+
+1. **Get Twitch Client ID**
+   - Create a Twitch Developer Application
+   - Copy your Client ID
+
+2. **Authorize Application**
+   - Enter your Client ID in the web interface
+   - Click "Authorize with Twitch"
+   - Complete the OAuth flow in the popup window
+
+3. **Update Stream Info**
+   - Once authorized, you can change stream title and category
+   - Changes will be applied when you start streaming
+
+## 🔧 Configuration
+
+### Quality Settings
+
+- **1080p**: Best quality, requires strong internet connection (4.5 Mbps upload)
+- **720p**: Good balance of quality and performance (2.5 Mbps upload)
+- **480p**: Lower quality, suitable for slower connections (1 Mbps upload)
+
+### Frame Rate Options
+
+- **60 FPS**: Smooth motion, best for gaming content
+- **30 FPS**: Standard streaming frame rate
+- **24 FPS**: Cinematic frame rate
+
+### Audio Configuration
+
+- **System Audio**: Captures all sounds from your computer
+- **Microphone**: Captures audio from your microphone
+- **Both**: Mixes system audio and microphone (recommended for commentary)
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+1. **"FFmpeg not found" error**
+   - Ensure FFmpeg is installed and added to your system PATH
+   - Restart your terminal/command prompt after installation
+
+2. **Stream connection fails**
+   - Verify your stream key is correct
+   - Check if you're already streaming on Twitch
+   - Ensure your internet connection is stable
+
+3. **Audio not working**
+   - Grant browser permissions for microphone access
+   - Check system audio settings
+   - Try refreshing the page and reselecting your screen
+
+4. **Poor stream quality**
+   - Lower the quality setting (720p → 480p)
+   - Reduce frame rate (60 → 30 FPS)
+   - Check your internet upload speed
+
+5. **OAuth authorization fails**
+   - Ensure your Twitch Client ID is correct
+   - Make sure the OAuth redirect URL matches exactly
+   - Try clearing browser cache and cookies
+
+### Performance Tips
+
+- Close unnecessary applications to free up system resources
+- Use a wired internet connection for better stability
+- Monitor CPU usage - if high, lower quality settings
+- Ensure adequate upload bandwidth for your chosen quality
+
+## 📝 Technical Details
+
+### System Requirements
+
+- **OS**: Windows 10+, macOS 10.14+, or Linux
+- **RAM**: 4GB minimum, 8GB recommended
+- **CPU**: Multi-core processor recommended
+- **Internet**: Upload speed matching your quality setting
+- **Browser**: Chrome, Firefox, or Edge (supports screen capture API)
+
+### Network Requirements
+
+- **480p**: 1+ Mbps upload
+- **720p**: 2.5+ Mbps upload  
+- **1080p**: 4.5+ Mbps upload
+
+### Supported Formats
+
+- **Video**: WebM (VP8/VP9), converted to H.264 for Twitch
+- **Audio**: Opus, converted to AAC for Twitch
+- **Output**: FLV stream via RTMP to Twitch servers
+
+## 🤝 Support
+
+If you encounter issues:
+
+1. Check the troubleshooting section above
+2. Verify all prerequisites are installed correctly
+3. Check the browser console for error messages
+4. Ensure the Node.js server is running without errors
+
+## 📄 License
+
+This project is provided as-is for educational and personal use.
+
+## 🔗 Useful Links
+
+- [Twitch Creator Dashboard](https://dashboard.twitch.tv/)
+- [Twitch Developer Console](https://dev.twitch.tv/console/apps)
+- [FFmpeg Download](https://ffmpeg.org/download.html)
+- [Node.js Download](https://nodejs.org/)
+- [OBS Studio](https://obsproject.com/) - Alternative streaming software
+        };
+    }
+
+    /* ...existing code... */
+}
