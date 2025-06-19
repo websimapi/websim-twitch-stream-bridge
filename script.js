@@ -390,22 +390,20 @@ class TwitchStreamBridge {
             }, null, 2),
 
             'server.js': `const express = require('express');
-const cors = require('cors');
-const multer = require('multer');
-const ffmpeg = require('fluent-ffmpeg');
+const http = require('http');
 const WebSocket = require('ws');
-const fs = require('fs');
-const path = require('path');
+const cors = require('cors');
+const ffmpeg = require('fluent-ffmpeg');
 
 const app = express();
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
+
 const port = 3001;
 
 app.use(cors());
 app.use(express.json());
 
-const upload = multer({ dest: 'temp/' });
-
-let currentStream = null;
 let ffmpegProcess = null;
 
 // Health check
@@ -414,131 +412,117 @@ app.get('/health', (req, res) => {
 });
 
 // Test RTMP connection
-app.post('/test-rtmp', async (req, res) => {
+app.post('/test-rtmp', (req, res) => {
     const { streamKey } = req.body;
-    
-    try {
-        // Test connection to Twitch RTMP servers
-        const rtmpUrl = \`rtmp://live.twitch.tv/live/\${streamKey}\`;
-        
-        // Simple test - attempt to create a test stream
-        const testProcess = ffmpeg()
-            .input('testsrc=duration=1:size=320x240:rate=1')
-            .inputFormat('lavfi')
-            .outputFormat('flv')
-            .output(rtmpUrl)
-            .on('start', () => {
-                console.log('RTMP test started');
-                testProcess.kill('SIGKILL');
-                res.json({ success: true });
-            })
-            .on('error', (err) => {
-                console.error('RTMP test failed:', err);
-                res.json({ success: false, error: err.message });
-            });
-            
-        testProcess.run();
-        
-        // Timeout after 5 seconds
-        setTimeout(() => {
+    if (!streamKey) {
+        return res.status(400).json({ success: false, error: 'Stream key is required.' });
+    }
+
+    const rtmpUrl = \`rtmp://live.twitch.tv/app/\${streamKey}\`;
+    let responseSent = false;
+    let testProcess;
+
+    const sendResponse = (data) => {
+        if (!responseSent) {
+            responseSent = true;
+            clearTimeout(timeout);
             if (testProcess) {
                 testProcess.kill('SIGKILL');
-                res.json({ success: false, error: 'Connection timeout' });
             }
-        }, 5000);
-        
-    } catch (error) {
-        res.json({ success: false, error: error.message });
-    }
-});
-
-// Start streaming
-app.post('/start-stream', (req, res) => {
-    const { streamKey, title, category, quality, framerate } = req.body;
-    
-    try {
-        const rtmpUrl = \`rtmp://live.twitch.tv/live/\${streamKey}\`;
-        
-        // Create named pipe for receiving stream data
-        const pipePath = path.join(__dirname, 'stream.pipe');
-        
-        if (fs.existsSync(pipePath)) {
-            fs.unlinkSync(pipePath);
+            res.json(data);
         }
-        
-        // Start FFmpeg process
-        ffmpegProcess = ffmpeg()
-            .input(pipePath)
-            .inputFormat('webm')
-            .videoCodec('libx264')
-            .audioCodec('aac')
-            .outputFormat('flv')
-            .output(rtmpUrl)
-            .on('start', (commandLine) => {
-                console.log('FFmpeg started:', commandLine);
-                res.json({ success: true });
-            })
-            .on('error', (err) => {
-                console.error('FFmpeg error:', err);
-                ffmpegProcess = null;
-            })
-            .on('end', () => {
-                console.log('FFmpeg ended');
-                ffmpegProcess = null;
-            });
-            
-        ffmpegProcess.run();
-        
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
+    };
 
-// Receive stream data
-app.post('/stream-data', upload.single('chunk'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ error: 'No data received' });
-    }
-    
+    const timeout = setTimeout(() => {
+        sendResponse({ success: false, error: 'Connection timeout. Check network or firewall.' });
+    }, 8000);
+
     try {
-        const pipePath = path.join(__dirname, 'stream.pipe');
+        testProcess = ffmpeg()
+            .input('testsrc=duration=2:size=128x72:rate=10')
+            .inputFormat('lavfi')
+            .outputOptions([
+                '-t 2', // Attempt to stream for 2 seconds
+                '-f flv'
+            ])
+            .output(rtmpUrl)
+            .on('start', (command) => console.log('RTMP test started:', command))
+            .on('end', () => {
+                console.log('RTMP test finished successfully.');
+                sendResponse({ success: true });
+            })
+            .on('error', (err, stdout, stderr) => {
+                if (responseSent) return;
+                console.error('RTMP test failed:', err.message);
+                console.error('ffmpeg stderr:', stderr);
+                sendResponse({ success: false, error: 'Connection failed. Check stream key.' });
+            });
         
-        // Write chunk to pipe (simplified - in production you'd want proper pipe handling)
-        fs.appendFileSync(pipePath, fs.readFileSync(req.file.path));
-        
-        // Clean up temp file
-        fs.unlinkSync(req.file.path);
-        
-        res.json({ success: true });
+        testProcess.run();
     } catch (error) {
-        console.error('Error handling stream data:', error);
-        res.status(500).json({ error: error.message });
+        sendResponse({ success: false, error: error.message });
     }
 });
 
-// Stop streaming
-app.post('/stop-stream', (req, res) => {
-    if (ffmpegProcess) {
-        ffmpegProcess.kill('SIGKILL');
-        ffmpegProcess = null;
-    }
+wss.on('connection', (ws, req) => {
+    console.log('WebSocket client connected.');
+
+    const urlParams = new URLSearchParams(req.url.substring(req.url.indexOf('?')));
+    const streamKey = urlParams.get('streamKey');
     
-    const pipePath = path.join(__dirname, 'stream.pipe');
-    if (fs.existsSync(pipePath)) {
-        fs.unlinkSync(pipePath);
+    if (!streamKey) {
+        console.error('WebSocket connection failed: Missing stream key');
+        ws.terminate();
+        return;
     }
-    
-    res.json({ success: true });
+
+    const rtmpUrl = \`rtmp://live.twitch.tv/app/\${streamKey}\`;
+
+    ffmpegProcess = ffmpeg()
+        .input('pipe:0')
+        .inputFormat('webm')
+        .outputOptions([
+            '-c:v libx264',
+            '-preset veryfast',
+            '-tune zerolatency',
+            '-c:a aac',
+            '-b:a 128k',
+            '-f flv'
+        ])
+        .on('start', (command) => console.log('FFmpeg started:', command))
+        .on('error', (err, stdout, stderr) => {
+            console.error('FFmpeg error:', err.message);
+            console.error('ffmpeg stderr:', stderr);
+            if (ffmpegProcess) ffmpegProcess.kill('SIGKILL');
+        })
+        .on('end', () => console.log('FFmpeg stream ended.'))
+        .pipe(rtmpUrl, { end: true });
+
+    ws.on('message', (message) => {
+        if (ffmpegProcess && ffmpegProcess.stdin.writable) {
+            ffmpegProcess.stdin.write(message);
+        }
+    });
+
+    ws.on('close', () => {
+        console.log('WebSocket client disconnected.');
+        if (ffmpegProcess) {
+            console.log('Stopping FFmpeg process.');
+            ffmpegProcess.stdin.end();
+            ffmpegProcess.kill('SIGKILL');
+            ffmpegProcess = null;
+        }
+    });
+
+    ws.on('error', (error) => {
+        console.error('WebSocket error:', error);
+    });
 });
 
-// Create temp directory
-if (!fs.existsSync('temp')) {
-    fs.mkdirSync('temp');
-}
-
-app.listen(port, () => {
-    console.log(\`Twitch Stream Bridge server running on port \${port}\`);
-});`,
+server.listen(port, () => {
+    console.log(\`Twitch Stream Bridge server with WebSocket running on port \${port}\`);
+});
+`,
 
             'README.md': `# Twitch Stream Bridge
 
