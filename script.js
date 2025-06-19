@@ -477,25 +477,68 @@ app.post('/start-stream', (req, res) => {
     const rtmpUrl = \`rtmp://live.twitch.tv/app/\${streamKey}\`;
     console.log('Starting stream to:', rtmpUrl);
 
+    // Get quality settings
+    const getQualitySettings = (quality) => {
+        switch(quality) {
+            case '1080p':
+                return { width: '1920', height: '1080', bitrate: '4500k', maxrate: '4500k', bufsize: '9000k' };
+            case '720p':
+                return { width: '1280', height: '720', bitrate: '2500k', maxrate: '2500k', bufsize: '5000k' };
+            case '480p':
+                return { width: '854', height: '480', bitrate: '1000k', maxrate: '1000k', bufsize: '2000k' };
+            default:
+                return { width: '1280', height: '720', bitrate: '2500k', maxrate: '2500k', bufsize: '5000k' };
+        }
+    };
+
+    const settings = getQualitySettings(quality);
+
     try {
         // Use spawn instead of fluent-ffmpeg for better stdin control
         const ffmpegArgs = [
             '-f', 'webm',
             '-i', 'pipe:0',
+            
+            // Video encoding settings optimized for Twitch
             '-c:v', 'libx264',
-            '-preset', 'veryfast',
+            '-preset', 'ultrafast',
             '-tune', 'zerolatency',
-            '-maxrate', '3000k',
-            '-bufsize', '6000k',
+            '-profile:v', 'baseline',
+            '-level', '3.1',
+            
+            // Video quality settings
+            '-b:v', settings.bitrate,
+            '-maxrate', settings.maxrate,
+            '-bufsize', settings.bufsize,
             '-pix_fmt', 'yuv420p',
-            '-g', '50',
+            
+            // Keyframe settings (Twitch recommends keyframes every 2 seconds)
+            '-g', String(framerate * 2),
+            '-keyint_min', String(framerate),
+            '-sc_threshold', '0',
+            
+            // Video filters for scaling
+            '-vf', \`scale=\${settings.width}:\${settings.height}:force_original_aspect_ratio=decrease,pad=\${settings.width}:\${settings.height}:(ow-iw)/2:(oh-ih)/2,fps=\${framerate}\`,
+            
+            // Audio encoding settings
             '-c:a', 'aac',
             '-b:a', '128k',
             '-ac', '2',
             '-ar', '44100',
+            '-aac_coder', 'twoloop',
+            
+            // Threading and performance
+            '-threads', '0',
+            '-thread_type', 'slice',
+            
+            // Output format
             '-f', 'flv',
+            '-flvflags', 'no_duration_filesize',
+            
             rtmpUrl
         ];
+
+        console.log('FFmpeg command:', 'ffmpeg', ffmpegArgs.join(' '));
 
         ffmpegProcess = spawn('ffmpeg', ffmpegArgs);
         
@@ -539,7 +582,7 @@ app.post('/stream-data', upload.single('chunk'), (req, res) => {
     }
 
     try {
-        if (ffmpegProcess.stdin && ffmpegProcess.stdin.writable) {
+        if (ffmpegProcess.stdin && ffmpegProcess.stdin.writable && !ffmpegProcess.stdin.destroyed) {
             ffmpegProcess.stdin.write(req.file.buffer);
             res.json({ success: true });
         } else {
@@ -557,7 +600,7 @@ app.post('/stop-stream', (req, res) => {
     if (ffmpegProcess) {
         console.log('Stopping FFmpeg process.');
         try {
-            if (ffmpegProcess.stdin && ffmpegProcess.stdin.writable) {
+            if (ffmpegProcess.stdin && ffmpegProcess.stdin.writable && !ffmpegProcess.stdin.destroyed) {
                 ffmpegProcess.stdin.end();
             }
             ffmpegProcess.kill('SIGTERM');
