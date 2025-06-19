@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twitch Stream Bridge</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="download-btn-container">
+        <button id="downloadBtn" class="download-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7,10 12,15 17,10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Download Node.js Bridge
+        </button>
+    </div>
+
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">📺</div>
+                <h1>Twitch Stream Bridge</h1>
+            </div>
+            <p class="subtitle">Capture any browser tab and stream directly to Twitch</p>
+        </header>
+
+        <div class="main-content">
+            <div class="setup-panel">
+                <h2>Stream Configuration</h2>
+                
+                <div class="form-group">
+                    <label for="streamKey">Twitch Stream Key</label>
+                    <input type="password" id="streamKey" placeholder="Enter your Twitch stream key">
+                    <small>Find this in your Twitch Creator Dashboard > Settings > Stream</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="streamTitle">Stream Title</label>
+                    <input type="text" id="streamTitle" placeholder="My Awesome Stream">
+                </div>
+
+                <div class="form-group">
+                    <label for="category">Category</label>
+                    <input type="text" id="category" placeholder="Just Chatting">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="quality">Quality</label>
+                        <select id="quality">
+                            <option value="1080p">1080p</option>
+                            <option value="720p" selected>720p</option>
+                            <option value="480p">480p</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="framerate">Frame Rate</label>
+                        <select id="framerate">
+                            <option value="60">60 FPS</option>
+                            <option value="30" selected>30 FPS</option>
+                            <option value="24">24 FPS</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="audio-options">
+                    <h3>Audio Sources</h3>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="includeSystemAudio" checked>
+                        <span class="checkmark"></span>
+                        Include System Audio
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="includeMicrophone">
+                        <span class="checkmark"></span>
+                        Include Microphone
+                    </label>
+                </div>
+            </div>
+
+            <div class="capture-panel">
+                <h2>Screen Capture</h2>
+                
+                <div class="capture-options">
+                    <button id="selectScreen" class="capture-btn">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                            <line x1="8" y1="21" x2="16" y2="21"/>
+                            <line x1="12" y1="17" x2="12" y2="21"/>
+                        </svg>
+                        Select Screen/Tab
+                    </button>
+                    
+                    <div id="selectedSource" class="selected-source hidden">
+                        <div class="source-info">
+                            <span class="source-name">No source selected</span>
+                            <button id="changeSource" class="change-btn">Change</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="preview-container">
+                    <video id="preview" muted playsinline></video>
+                    <div class="preview-overlay">
+                        <p>Select a screen or tab to see preview</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-panel">
+            <div class="status-indicator">
+                <div id="statusDot" class="status-dot"></div>
+                <span id="statusText">Not Connected</span>
+            </div>
+
+            <div class="controls">
+                <button id="testConnection" class="btn btn-secondary">Test Connection</button>
+                <button id="startStream" class="btn btn-primary" disabled>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="5,3 19,12 5,21"/>
+                    </svg>
+                    Start Stream
+                </button>
+                <button id="stopStream" class="btn btn-danger hidden">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="6" y="6" width="12" height="12"/>
+                    </svg>
+                    Stop Stream
+                </button>
+            </div>
+        </div>
+
+        <div class="stats-panel hidden" id="statsPanel">
+            <h3>Stream Statistics</h3>
+            <div class="stats-grid">
+                <div class="stat">
+                    <span class="stat-label">Duration</span>
+                    <span class="stat-value" id="streamDuration">00:00:00</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Bitrate</span>
+                    <span class="stat-value" id="streamBitrate">0 kbps</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Frames Dropped</span>
+                    <span class="stat-value" id="framesDropped">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+    
+    <script src="script.js"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
+
