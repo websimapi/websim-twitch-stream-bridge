@@ -45,6 +45,11 @@
 
                 <div class="oauth-section" id="oauthSection">
                     <button id="authorizeBtn" class="btn btn-secondary" style="display: none;">Authorize with Twitch</button>
+                    <div class="manual-oauth" style="margin-top: 16px;">
+                        <label for="redirectUrl">Or paste the redirect URL here:</label>
+                        <input type="text" id="redirectUrl" placeholder="http://localhost/#access_token=...&scope=channel%3Amanage%3Abroadcast&token_type=bearer" style="width: 100%; margin-top: 8px; margin-bottom: 12px;">
+                        <button id="processUrlBtn" class="btn btn-secondary" style="width: 100%;">Process Access Token</button>
+                    </div>
                     <div id="authStatus" class="auth-status"></div>
                 </div>
 
