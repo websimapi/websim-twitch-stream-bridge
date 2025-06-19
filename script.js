@@ -1,5 +1,3 @@
-import JSZip from 'jszip';
-
 class TwitchStreamBridge {
     constructor() {
         this.mediaStream = null;
@@ -81,13 +79,9 @@ class TwitchStreamBridge {
             this.authorizeBtn.style.display = 'block';
             this.authStatus.textContent = 'Enter Client ID and click Authorize to enable title/category changes';
             this.authStatus.className = 'auth-status';
-            this.streamTitle.disabled = true;
-            this.category.disabled = true;
         } else {
             this.authorizeBtn.style.display = 'none';
             this.authStatus.textContent = '';
-            this.streamTitle.disabled = false;
-            this.category.disabled = false;
         }
         this.validateForm();
     }
@@ -99,7 +93,7 @@ class TwitchStreamBridge {
             return;
         }
 
-        const redirectUri = encodeURIComponent(window.location.origin + '/oauth-callback.html');
+        const redirectUri = 'http://localhost';
         const scope = encodeURIComponent('channel:manage:broadcast');
         const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
         
@@ -108,28 +102,40 @@ class TwitchStreamBridge {
         
         // Listen for message from popup
         const messageListener = async (event) => {
-            if (event.source !== authWindow || event.origin !== window.location.origin) {
+            if (event.source !== authWindow) {
                 return;
             }
 
             if (event.data.type === 'oauth_token' && event.data.token) {
                 this.oauthToken = event.data.token;
-                localStorage.setItem('twitch_oauth_token', this.oauthToken);
                 await this.fetchTwitchUserId();
+                
+                this.authStatus.textContent = 'Successfully authorized! You can now change stream title and category.';
+                this.authStatus.className = 'auth-status success';
+                this.authorizeBtn.textContent = 'Re-authorize';
+                this.validateForm();
                 
                 window.removeEventListener('message', messageListener);
                 if (authWindow) {
                     authWindow.close();
                 }
-            } else if (event.data.type === 'oauth_error') {
-                this.showToast(`OAuth Error: ${event.data.error_description}`, 'error');
-                window.removeEventListener('message', messageListener);
-                 if (authWindow) {
-                    authWindow.close();
-                }
             }
         };
         window.addEventListener('message', messageListener);
+
+        // Fallback check
+        const checkAuth = setInterval(() => {
+            try {
+                if (authWindow && authWindow.closed) {
+                    clearInterval(checkAuth);
+                    window.removeEventListener('message', messageListener);
+                    // Give a small delay for the server to process, then check
+                    setTimeout(() => this.checkOAuthCompletion(), 1000);
+                }
+            } catch (error) {
+                // Handle cross-origin issues
+            }
+        }, 1000);
     }
 
     async fetchTwitchUserId() {
@@ -144,77 +150,42 @@ class TwitchStreamBridge {
             const data = await response.json();
             if (data.data && data.data.length > 0) {
                 this.userId = data.data[0].id;
-                localStorage.setItem('twitch_user_id', this.userId);
-                this.authStatus.textContent = 'Successfully authorized! You can now change stream title and category.';
-                this.authStatus.className = 'auth-status success';
-                this.authorizeBtn.textContent = 'Re-authorize';
-                this.streamTitle.disabled = false;
-                this.category.disabled = false;
-                this.validateForm();
+                // Store on server for persistence across reloads
+                fetch('http://localhost:3001/oauth/store-token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: this.oauthToken, userId: this.userId })
+                });
             } else {
                  this.showToast('Could not fetch Twitch User ID.', 'error');
-                 this.clearOAuth();
             }
         } catch(e) {
             console.error('Error fetching Twitch User ID:', e);
             this.showToast('Error fetching Twitch User ID.', 'error');
-            this.clearOAuth();
         }
     }
 
-    clearOAuth() {
-        this.oauthToken = null;
-        this.userId = null;
-        localStorage.removeItem('twitch_oauth_token');
-        localStorage.removeItem('twitch_user_id');
-        this.authStatus.textContent = 'Authorization failed or expired. Please re-authorize.';
-        this.authStatus.className = 'auth-status error';
-        this.authorizeBtn.textContent = 'Authorize with Twitch';
-        this.streamTitle.disabled = true;
-        this.category.disabled = true;
-    }
-
-    async checkOAuthToken() {
-        const token = localStorage.getItem('twitch_oauth_token');
-        const userId = localStorage.getItem('twitch_user_id');
-        const clientId = this.clientId.value.trim();
-
-        if (token && clientId) {
-            this.oauthToken = token;
-            this.userId = userId;
-            // Validate token
-            try {
-                const response = await fetch('https://id.twitch.tv/oauth2/validate', {
-                    headers: { 'Authorization': `Bearer ${this.oauthToken}` }
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    if(data.client_id === clientId) {
-                        this.userId = data.user_id;
-                        this.authStatus.textContent = `Authorized as ${data.login}. You can update title/category.`;
-                        this.authStatus.className = 'auth-status success';
-                        this.authorizeBtn.textContent = 'Re-authorize';
-                        this.streamTitle.disabled = false;
-                        this.category.disabled = false;
-                    } else {
-                        this.showToast('Token is for a different Client ID. Please re-authorize.', 'error');
-                        this.clearOAuth();
-                    }
-                } else {
-                     this.showToast('Twitch authorization has expired. Please re-authorize.', 'error');
-                     this.clearOAuth();
-                }
-            } catch (e) {
-                console.error("OAuth validation failed", e);
-                this.clearOAuth();
+    async checkOAuthCompletion() {
+        try {
+            const response = await fetch('http://localhost:3001/oauth/token');
+            const data = await response.json();
+            
+            if (data.success && data.token) {
+                this.oauthToken = data.token;
+                this.userId = data.userId;
+                this.authStatus.textContent = 'Successfully authorized! You can now change stream title and category.';
+                this.authStatus.className = 'auth-status success';
+                this.authorizeBtn.textContent = 'Re-authorize';
+                this.validateForm();
             }
-        } else if (clientId) {
-             this.authStatus.textContent = 'Enter Client ID and click Authorize to enable title/category changes';
-             this.authStatus.className = 'auth-status';
-             this.streamTitle.disabled = true;
-             this.category.disabled = true;
+        } catch (error) {
+            console.error('Error checking OAuth completion:', error);
         }
+    }
+
+    checkOAuthToken() {
+        // Check if we have a stored OAuth token
+        this.checkOAuthCompletion();
     }
 
     async selectMediaSource() {
@@ -332,9 +303,6 @@ class TwitchStreamBridge {
         if (connected) {
             this.statusDot.classList.add('connected');
             this.statusText.textContent = 'Connected';
-            if (this.clientId.value.trim()) {
-                this.checkOAuthToken();
-            }
         } else {
             this.statusDot.classList.remove('connected', 'streaming');
             this.statusText.textContent = 'Not Connected';
@@ -360,7 +328,7 @@ class TwitchStreamBridge {
 
         try {
             // Update stream info if we have OAuth token
-            if (this.oauthToken && this.clientId.value.trim() && this.userId) {
+            if (this.oauthToken && this.clientId.value.trim()) {
                 await this.updateStreamInfo();
             }
 
@@ -531,6 +499,7 @@ class TwitchStreamBridge {
         const files = this.createNodeProjectFiles();
         
         // Create ZIP
+        const JSZip = window.JSZip || this.loadJSZip();
         const zip = new JSZip();
         
         for (const [filename, content] of Object.entries(files)) {
@@ -550,8 +519,6 @@ class TwitchStreamBridge {
     }
 
     loadJSZip() {
-        // This method is no longer needed with import maps but kept for potential fallback logic if needed elsewhere.
-        // It's currently not called.
         const script = document.createElement('script');
         script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
         document.head.appendChild(script);
@@ -576,6 +543,9 @@ class TwitchStreamBridge {
                     "express": "^4.18.2",
                     "fluent-ffmpeg": "^2.1.2",
                     "multer": "^1.4.5-lts.1"
+                },
+                "devDependencies": {
+                    "nodemon": "^3.0.1"
                 }
             }, null, 2),
 
@@ -585,7 +555,6 @@ const multer = require('multer');
 const { spawn } = require('child_process');
 const axios = require('axios');
 const path = require('path');
-const http = require('http');
 
 const app = express();
 const port = 3001;
@@ -593,13 +562,64 @@ const port = 3001;
 app.use(cors());
 app.use(express.json());
 
-// Serve static files from the current directory
-app.use(express.static(path.join(__dirname)));
-
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 let ffmpegProcess = null;
+let oauthToken = null;
+let userId = null;
+
+// This is the page Twitch redirects to. It will send the token to the main app window.
+app.get('/oauth/callback-implicit', (req, res) => {
+    res.send(\`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Twitch Authorization</title>
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                const hash = window.location.hash.substring(1);
+                const params = new URLSearchParams(hash);
+                const accessToken = params.get('access_token');
+
+                if (window.opener && accessToken) {
+                    // Send message to parent window
+                    window.opener.postMessage({ type: 'oauth_token', token: accessToken }, '*');
+                    window.close();
+                } else {
+                    // Fallback in case window.opener is not available
+                    document.body.innerHTML = '<h2>Authorization successful! Please close this window.</h2>';
+                }
+            });
+        </script>
+    </head>
+    <body>
+        <h2>Processing authorization... Please wait.</h2>
+    </body>
+    </html>
+    \`);
+});
+
+// Endpoint to store token and userID for persistence
+app.post('/oauth/store-token', (req, res) => {
+    const { token, userId: newUserId } = req.body;
+    if (token && newUserId) {
+        oauthToken = token;
+        userId = newUserId;
+        res.json({ success: true });
+    } else {
+        res.status(400).json({ success: false, error: 'Token and UserID required' });
+    }
+});
+
+// Endpoint for the main app to check for a stored token on startup
+app.get('/oauth/token', (req, res) => {
+    if (oauthToken && userId) {
+        res.json({ success: true, token: oauthToken, userId: userId });
+    } else {
+        res.json({ success: false });
+    }
+});
 
 // Health check
 app.get('/health', (req, res) => {
@@ -615,20 +635,7 @@ app.post('/test-rtmp', (req, res) => {
 
     const rtmpUrl = \`rtmp://live.twitch.tv/app/\${streamKey}\`;
     let responseSent = false;
-    
-    const ffmpegPath = 'ffmpeg'; // Or provide a full path if not in system PATH
-    const testArgs = [
-        '-f', 'lavfi',
-        '-i', 'testsrc=duration=5:size=128x72:rate=10',
-        '-t', '5',
-        '-f', 'flv',
-        rtmpUrl
-    ];
-
-    console.log('RTMP test started:', ffmpegPath, testArgs.join(' '));
-
-    const testProcess = spawn(ffmpegPath, testArgs);
-    let ffmpegOutput = '';
+    let testProcess;
 
     const sendResponse = (data) => {
         if (!responseSent) {
@@ -640,34 +647,36 @@ app.post('/test-rtmp', (req, res) => {
             res.json(data);
         }
     };
-    
-    testProcess.stderr.on('data', (data) => {
-        ffmpegOutput += data.toString();
-        // Twitch often says "Connection refused" or similar on wrong key
-        if (ffmpegOutput.includes('Connection refused') || ffmpegOutput.includes('Unknown error')) {
-            sendResponse({ success: false, error: 'Connection failed. Check stream key or if you are already live.' });
-        }
-    });
-
-    testProcess.on('close', (code) => {
-        if (code === 0) {
-            console.log('RTMP test finished successfully.');
-            sendResponse({ success: true });
-        } else {
-            console.error(\`RTMP test failed with code \${code}\`);
-            console.error('ffmpeg stderr:', ffmpegOutput);
-            sendResponse({ success: false, error: \`FFmpeg exited with code \${code}. Check console for details.\` });
-        }
-    });
-
-    testProcess.on('error', (err) => {
-        console.error('RTMP test process error:', err.message);
-        sendResponse({ success: false, error: err.message });
-    });
 
     const timeout = setTimeout(() => {
         sendResponse({ success: false, error: 'Connection timeout. Check network or firewall.' });
     }, 10000);
+
+    try {
+        testProcess = ffmpeg()
+            .input('testsrc=duration=5:size=128x72:rate=10')
+            .inputFormat('lavfi')
+            .outputOptions([
+                '-t 5',
+                '-f flv'
+            ])
+            .output(rtmpUrl)
+            .on('start', (command) => console.log('RTMP test started:', command))
+            .on('end', () => {
+                console.log('RTMP test finished successfully.');
+                sendResponse({ success: true });
+            })
+            .on('error', (err, stdout, stderr) => {
+                if (responseSent) return;
+                console.error('RTMP test failed:', err.message);
+                console.error('ffmpeg stderr:', stderr);
+                sendResponse({ success: false, error: 'Connection failed. Check stream key or if you are already live.' });
+            });
+        
+        testProcess.run();
+    } catch (error) {
+        sendResponse({ success: false, error: error.message });
+    }
 });
 
 // Update stream info via Twitch API
@@ -898,7 +907,7 @@ A local Node.js server that acts as a bridge between the browser-based stream ca
 
 1.  Start the server: \`npm start\`
 2.  The server will run on http://localhost:3001.
-3.  Open http://localhost:3001 in your browser to configure and start streaming.
+3.  Open the \`index.html\` file in your browser to configure and start streaming.
 
 ## Setting up Twitch OAuth
 
@@ -908,7 +917,7 @@ To enable changing the stream title and category directly from the app, you need
 2.  Click "Register Your Application".
 3.  Give your application a Name (e.g., "My Browser Streamer").
 4.  For **OAuth Redirect URLs**, add the following URL:
-    -   \`http://localhost:3001/oauth-callback.html\`
+    -   \`http://localhost:3001/oauth/callback-implicit\`
 5.  Choose a Category (e.g., "Application Integration").
 6.  Click "Create".
 7.  On the next page, you will see a **Client ID**. Copy this value.
@@ -933,7 +942,7 @@ FFmpeg is required for encoding the stream. You must install it and ensure it's 
 
 -   **"Could not connect to Node.js bridge"**: Make sure the Node.js server is running (\`npm start\`) and not blocked by a firewall.
 -   **"Connection failed. Check stream key..."**: Verify your Twitch stream key is correct and that you are not already live from another source.
--   **"Authorization failed"**: Ensure the OAuth Redirect URL in your Twitch Application settings is exactly \`http://localhost:3001/oauth-callback.html\`.
+-   **"Authorization failed"**: Ensure the OAuth Redirect URL in your Twitch Application settings is exactly \`http://localhost:3001/oauth/callback-implicit\`.
 -   **FFmpeg errors in the console**: Make sure FFmpeg is installed correctly and accessible from your terminal (try running \`ffmpeg -version\`).
 `
         };
@@ -948,6 +957,11 @@ FFmpeg is required for encoding the stream. You must install it and ensure it's 
         }, 4000);
     }
 }
+
+// Load JSZip library
+const script = document.createElement('script');
+script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+document.head.appendChild(script);
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
