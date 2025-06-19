@@ -392,6 +392,7 @@ class TwitchStreamBridge {
 const cors = require('cors');
 const multer = require('multer');
 const ffmpeg = require('fluent-ffmpeg');
+const { spawn } = require('child_process');
 
 const app = express();
 const port = 3001;
@@ -468,52 +469,86 @@ app.post('/start-stream', (req, res) => {
         return res.status(400).json({ success: false, error: 'Stream is already running.' });
     }
 
-    const { streamKey } = req.body;
+    const { streamKey, quality = '720p', framerate = 30 } = req.body;
     if (!streamKey) {
         return res.status(400).json({ success: false, error: 'Stream key is required.' });
     }
-    const rtmpUrl = \`rtmp://live.twitch.tv/app/\${streamKey}\`;
     
+    const rtmpUrl = \`rtmp://live.twitch.tv/app/\${streamKey}\`;
     console.log('Starting stream to:', rtmpUrl);
 
-    ffmpegProcess = ffmpeg()
-        .input('pipe:0')
-        .inputFormat('webm')
-        .outputOptions([
-            '-c:v libx264',
-            '-preset veryfast',
-            '-tune zerolatency',
-            '-c:a aac',
-            '-b:a 128k',
-            '-f flv'
-        ])
-        .on('start', (command) => console.log('FFmpeg started:', command))
-        .on('error', (err, stdout, stderr) => {
-            console.error('FFmpeg error:', err.message);
-            console.error('ffmpeg stderr:', stderr);
-            if (ffmpegProcess) ffmpegProcess.kill('SIGKILL');
-            ffmpegProcess = null;
-        })
-        .on('end', () => {
-            console.log('FFmpeg stream ended.');
+    try {
+        // Use spawn instead of fluent-ffmpeg for better stdin control
+        const ffmpegArgs = [
+            '-f', 'webm',
+            '-i', 'pipe:0',
+            '-c:v', 'libx264',
+            '-preset', 'veryfast',
+            '-tune', 'zerolatency',
+            '-maxrate', '3000k',
+            '-bufsize', '6000k',
+            '-pix_fmt', 'yuv420p',
+            '-g', '50',
+            '-c:a', 'aac',
+            '-b:a', '128k',
+            '-ac', '2',
+            '-ar', '44100',
+            '-f', 'flv',
+            rtmpUrl
+        ];
+
+        ffmpegProcess = spawn('ffmpeg', ffmpegArgs);
+        
+        ffmpegProcess.stdin.on('error', (err) => {
+            console.error('FFmpeg stdin error:', err.message);
+        });
+
+        ffmpegProcess.stdout.on('data', (data) => {
+            console.log('FFmpeg stdout:', data.toString());
+        });
+
+        ffmpegProcess.stderr.on('data', (data) => {
+            console.log('FFmpeg stderr:', data.toString());
+        });
+
+        ffmpegProcess.on('close', (code) => {
+            console.log(\`FFmpeg process exited with code \${code}\`);
             ffmpegProcess = null;
         });
 
-    ffmpegProcess.pipe(rtmpUrl, { end: true });
-    
-    res.json({ success: true, message: 'Stream started.' });
+        ffmpegProcess.on('error', (err) => {
+            console.error('FFmpeg process error:', err.message);
+            ffmpegProcess = null;
+        });
+
+        res.json({ success: true, message: 'Stream started.' });
+    } catch (error) {
+        console.error('Error starting FFmpeg:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
 // Receive stream data chunk
 app.post('/stream-data', upload.single('chunk'), (req, res) => {
     if (!ffmpegProcess) {
-        return res.status(404).send('Stream not started.');
+        return res.status(400).json({ success: false, error: 'Stream not started.' });
     }
-    if (ffmpegProcess.stdin.writable) {
-        ffmpegProcess.stdin.write(req.file.buffer);
-        res.sendStatus(200);
-    } else {
-        res.status(500).send('FFmpeg input stream is not writable.');
+    
+    if (!req.file) {
+        return res.status(400).json({ success: false, error: 'No data received.' });
+    }
+
+    try {
+        if (ffmpegProcess.stdin && ffmpegProcess.stdin.writable) {
+            ffmpegProcess.stdin.write(req.file.buffer);
+            res.json({ success: true });
+        } else {
+            console.error('FFmpeg stdin is not writable');
+            res.status(500).json({ success: false, error: 'FFmpeg input stream is not writable.' });
+        }
+    } catch (error) {
+        console.error('Error writing to FFmpeg stdin:', error.message);
+        res.status(500).json({ success: false, error: 'Error writing stream data.' });
     }
 });
 
@@ -522,8 +557,15 @@ app.post('/stop-stream', (req, res) => {
     if (ffmpegProcess) {
         console.log('Stopping FFmpeg process.');
         try {
-            ffmpegProcess.stdin.end();
-            ffmpegProcess.kill('SIGKILL');
+            if (ffmpegProcess.stdin && ffmpegProcess.stdin.writable) {
+                ffmpegProcess.stdin.end();
+            }
+            ffmpegProcess.kill('SIGTERM');
+            setTimeout(() => {
+                if (ffmpegProcess) {
+                    ffmpegProcess.kill('SIGKILL');
+                }
+            }, 5000);
         } catch(e) {
             console.error('Error stopping ffmpeg:', e.message);
         }
