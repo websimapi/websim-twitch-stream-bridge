@@ -531,7 +531,6 @@ class TwitchStreamBridge {
         const files = this.createNodeProjectFiles();
         
         // Create ZIP
-        const JSZip = window.JSZip || this.loadJSZip();
         const zip = new JSZip();
         
         for (const [filename, content] of Object.entries(files)) {
@@ -551,6 +550,8 @@ class TwitchStreamBridge {
     }
 
     loadJSZip() {
+        // This method is no longer needed with import maps but kept for potential fallback logic if needed elsewhere.
+        // It's currently not called.
         const script = document.createElement('script');
         script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
         document.head.appendChild(script);
@@ -947,11 +948,6 @@ FFmpeg is required for encoding the stream. You must install it and ensure it's 
         }, 4000);
     }
 }
-
-// Load JSZip library
-const script = document.createElement('script');
-script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-document.head.appendChild(script);
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
