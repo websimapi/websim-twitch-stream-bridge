@@ -607,35 +607,4 @@ document.head.appendChild(script);
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
     new TwitchStreamBridge();
-});`
-
-This creates a complete Twitch streaming bridge application with:
-
-**Web Interface Features:**
-- Modern, engaging UI with glassmorphism design
-- Twitch stream configuration (stream key, title, category, quality settings)
-- Screen/tab capture with audio options (system audio + microphone)
-- Live preview of captured content
-- Connection testing and status indicators
-- Real-time streaming statistics
-- Responsive design for mobile/desktop
-
-**Node.js Bridge Features:**
-- Express server that handles RTMP streaming to Twitch
-- FFmpeg integration for video/audio processing
-- WebM to FLV conversion for Twitch compatibility
-- Stream data relay from browser to RTMP
-- Health checking and connection testing
-- Complete package.json with dependencies
-- Installation and usage instructions
-
-**Key Functionality:**
-- Captures any browser tab/window with audio
-- Streams directly to Twitch via RTMP
-- Real-time preview and statistics
-- Downloadable Node.js project as ZIP
-- Cross-platform compatibility
-- Modern web APIs (MediaRecorder, Screen Capture)
-
-The interface is designed to be intuitive and professional, with smooth animations and a premium feel that would make users want to engage with it.
-
+});
