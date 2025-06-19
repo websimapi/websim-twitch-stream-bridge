@@ -93,8 +93,8 @@ class TwitchStreamBridge {
             return;
         }
 
-        const redirectUri = 'http://localhost';
-        const scope = encodeURIComponent('channel:manage:broadcast');
+        const redirectUri = 'http://localhost:3001/oauth/callback';
+        const scope = 'channel:manage:broadcast';
         const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
         
         // Open OAuth window
@@ -106,7 +106,7 @@ class TwitchStreamBridge {
                 return;
             }
 
-            if (event.data.type === 'oauth_token' && event.data.token) {
+            if (event.data.type === 'oauth_success' && event.data.token) {
                 this.oauthToken = event.data.token;
                 await this.fetchTwitchUserId();
                 
@@ -119,21 +119,21 @@ class TwitchStreamBridge {
                 if (authWindow) {
                     authWindow.close();
                 }
+            } else if (event.data.type === 'oauth_error') {
+                this.showToast('Authorization failed. Please try again.', 'error');
+                window.removeEventListener('message', messageListener);
+                if (authWindow) {
+                    authWindow.close();
+                }
             }
         };
         window.addEventListener('message', messageListener);
 
-        // Fallback check
-        const checkAuth = setInterval(() => {
-            try {
-                if (authWindow && authWindow.closed) {
-                    clearInterval(checkAuth);
-                    window.removeEventListener('message', messageListener);
-                    // Give a small delay for the server to process, then check
-                    setTimeout(() => this.checkOAuthCompletion(), 1000);
-                }
-            } catch (error) {
-                // Handle cross-origin issues
+        // Handle window closed without completion
+        const checkClosed = setInterval(() => {
+            if (authWindow.closed) {
+                clearInterval(checkClosed);
+                window.removeEventListener('message', messageListener);
             }
         }, 1000);
     }
@@ -167,7 +167,7 @@ class TwitchStreamBridge {
 
     async checkOAuthCompletion() {
         try {
-            const response = await fetch('http://localhost:3001/oauth/token');
+            const response = await fetch('http://localhost:3001/oauth/check-token');
             const data = await response.json();
             
             if (data.success && data.token) {
@@ -569,53 +569,131 @@ let ffmpegProcess = null;
 let oauthToken = null;
 let userId = null;
 
-// This is the page Twitch redirects to. It will send the token to the main app window.
-app.get('/oauth/callback-implicit', (req, res) => {
+// OAuth callback page - captures token from URL fragment
+app.get('/oauth/callback', (req, res) => {
     res.send(\`
     <!DOCTYPE html>
     <html>
     <head>
         <title>Twitch Authorization</title>
+        <style>
+            body { 
+                font-family: Arial, sans-serif; 
+                text-align: center; 
+                padding: 50px; 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                margin: 0;
+            }
+            .container {
+                background: rgba(255, 255, 255, 0.1);
+                padding: 30px;
+                border-radius: 15px;
+                backdrop-filter: blur(10px);
+                max-width: 500px;
+                margin: 0 auto;
+            }
+            .spinner {
+                border: 3px solid rgba(255, 255, 255, 0.3);
+                border-radius: 50%;
+                border-top: 3px solid white;
+                width: 30px;
+                height: 30px;
+                animation: spin 1s linear infinite;
+                margin: 20px auto;
+            }
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        </style>
         <script>
-            document.addEventListener('DOMContentLoaded', () => {
+            function handleAuth() {
+                // Check if this is the redirect with token in fragment
                 const hash = window.location.hash.substring(1);
                 const params = new URLSearchParams(hash);
                 const accessToken = params.get('access_token');
+                const error = params.get('error');
 
-                if (window.opener && accessToken) {
-                    // Send message to parent window
-                    window.opener.postMessage({ type: 'oauth_token', token: accessToken }, '*');
-                    window.close();
-                } else {
-                    // Fallback in case window.opener is not available
-                    document.body.innerHTML = '<h2>Authorization successful! Please close this window.</h2>';
+                if (error) {
+                    console.error('OAuth error:', error);
+                    if (window.opener) {
+                        window.opener.postMessage({ type: 'oauth_error', error: error }, '*');
+                    }
+                    document.getElementById('status').innerHTML = '<h2 style="color: #ff6b6b;">Authorization failed: ' + error + '</h2><p>You can close this window.</p>';
+                    return;
                 }
-            });
+
+                if (accessToken) {
+                    console.log('Access token received:', accessToken);
+                    
+                    // Store token on server
+                    fetch('/oauth/store-token', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ token: accessToken })
+                    }).then(response => response.json())
+                      .then(data => {
+                          if (data.success) {
+                              // Notify parent window
+                              if (window.opener) {
+                                  window.opener.postMessage({ 
+                                      type: 'oauth_success', 
+                                      token: accessToken 
+                                  }, '*');
+                              }
+                              document.getElementById('status').innerHTML = '<h2 style="color: #4ecdc4;">✅ Authorization Successful!</h2><p>You can close this window now.</p>';
+                              setTimeout(() => window.close(), 2000);
+                          } else {
+                              throw new Error('Failed to store token');
+                          }
+                      })
+                      .catch(error => {
+                          console.error('Error storing token:', error);
+                          document.getElementById('status').innerHTML = '<h2 style="color: #ff6b6b;">Error storing authorization</h2><p>Please try again.</p>';
+                      });
+                } else {
+                    document.getElementById('status').innerHTML = '<h2>Waiting for authorization...</h2><p>Please complete the authorization process.</p>';
+                }
+            }
+            
+            // Run when page loads
+            document.addEventListener('DOMContentLoaded', handleAuth);
         </script>
     </head>
     <body>
-        <h2>Processing authorization... Please wait.</h2>
+        <div class="container">
+            <div id="status">
+                <div class="spinner"></div>
+                <h2>Processing Authorization...</h2>
+                <p>Please wait while we complete your Twitch authorization.</p>
+            </div>
+        </div>
     </body>
     </html>
     \`);
 });
 
-// Endpoint to store token and userID for persistence
+// Store OAuth token
 app.post('/oauth/store-token', (req, res) => {
-    const { token, userId: newUserId } = req.body;
-    if (token && newUserId) {
+    const { token } = req.body;
+    if (token) {
         oauthToken = token;
-        userId = newUserId;
+        console.log('OAuth token stored successfully');
         res.json({ success: true });
     } else {
-        res.status(400).json({ success: false, error: 'Token and UserID required' });
+        res.status(400).json({ success: false, error: 'Token required' });
     }
 });
 
-// Endpoint for the main app to check for a stored token on startup
-app.get('/oauth/token', (req, res) => {
+// Check for stored token
+app.get('/oauth/check-token', (req, res) => {
     if (oauthToken && userId) {
         res.json({ success: true, token: oauthToken, userId: userId });
+    } else if (oauthToken) {
+        res.json({ success: true, token: oauthToken });
     } else {
         res.json({ success: false });
     }
@@ -691,8 +769,8 @@ app.post('/update-stream-info', async (req, res) => {
         let gameId = null;
         
         // Get game ID if category is provided
-        if (category) {
-            const gameResponse = await axios.get(\`https://api.twitch.tv/helix/games?name=\${encodeURIComponent(category)}\`, {
+        if (category && category.trim()) {
+            const gameResponse = await axios.get(\`https://api.twitch.tv/helix/games?name=\${encodeURIComponent(category.trim())}\`, {
                 headers: {
                     'Authorization': \`Bearer \${oauthToken}\`,
                     'Client-Id': clientId
@@ -701,13 +779,29 @@ app.post('/update-stream-info', async (req, res) => {
             
             if (gameResponse.data.data.length > 0) {
                 gameId = gameResponse.data.data[0].id;
+            } else {
+                console.log(\`Game category "\${category}" not found, using Just Chatting as fallback\`);
+                // Try "Just Chatting" as fallback
+                const fallbackResponse = await axios.get('https://api.twitch.tv/helix/games?name=Just%20Chatting', {
+                    headers: {
+                        'Authorization': \`Bearer \${oauthToken}\`,
+                        'Client-Id': clientId
+                    }
+                });
+                if (fallbackResponse.data.data.length > 0) {
+                    gameId = fallbackResponse.data.data[0].id;
+                }
             }
         }
         
         // Update channel info
         const updateData = {};
-        if (title) updateData.title = title;
+        if (title && title.trim()) updateData.title = title.trim();
         if (gameId) updateData.game_id = gameId;
+        
+        if (Object.keys(updateData).length === 0) {
+            return res.json({ success: true, message: 'No changes to make.' });
+        }
         
         const response = await axios.patch(\`https://api.twitch.tv/helix/channels?broadcaster_id=\${userId}\`, updateData, {
             headers: {
@@ -717,6 +811,7 @@ app.post('/update-stream-info', async (req, res) => {
             }
         });
         
+        console.log('Stream info updated successfully:', updateData);
         res.json({ success: true, message: 'Stream info updated successfully.' });
     } catch (error) {
         console.error('Error updating stream info:', error.response?.data || error.message);
@@ -890,80 +985,65 @@ app.listen(port, () => {
 
             'README.md': `# Twitch Stream Bridge
 
-A local Node.js server that acts as a bridge between the browser-based stream capture and Twitch's RTMP servers.
+A browser-based application that allows you to capture any browser tab/window with audio and stream it directly to Twitch via RTMP. The system consists of a web interface for configuration and a local Node.js server that handles the RTMP streaming to Twitch.
 
-## Prerequisites
+## 🚀 Features
 
-- Node.js (v14 or higher)
-- FFmpeg installed on your system and available in your system's PATH
+- **Browser Tab/Screen Capture**: Capture any browser tab, application window, or entire screen
+- **Audio Support**: Include system audio and/or microphone in your stream
+- **Direct Twitch Integration**: Stream directly to Twitch via RTMP
+- **Stream Management**: Change stream title and category through Twitch API integration
+- **Real-time Preview**: See what you're streaming before going live
+- **Quality Control**: Choose resolution (480p/720p/1080p) and frame rate (24/30/60 FPS)
+- **Stream Statistics**: Monitor stream duration, bitrate, and performance
 
-## Installation
+## 📋 Prerequisites
 
-1.  Extract this folder to your desired location.
-2.  Open a terminal or command prompt in this folder.
-3.  Run: \`npm install\`
+Before you begin, ensure you have the following installed on your system:
 
-## Usage
+### Required Software
 
-1.  Start the server: \`npm start\`
-2.  The server will run on http://localhost:3001.
-3.  Open the \`index.html\` file in your browser to configure and start streaming.
+1. **Node.js** (v14 or higher)
+   - Download from [nodejs.org](https://nodejs.org/)
+   - Verify installation: \`node --version\` and \`npm --version\`
 
-## Setting up Twitch OAuth
+2. **FFmpeg** (Required for video encoding and streaming)
+   
+   **Windows:**
+   - Download from [ffmpeg.org](https://ffmpeg.org/download.html)
+   - Extract the files and add the \`bin\` folder to your system's PATH environment variable
+   - Verify: Open Command Prompt and run \`ffmpeg -version\`
+   
+   **macOS:**
+   - Using Homebrew: \`brew install ffmpeg\`
+   - Verify: \`ffmpeg -version\`
+   
+   **Linux (Ubuntu/Debian):**
+   - \`sudo apt update && sudo apt install ffmpeg\`
+   - Verify: \`ffmpeg -version\`
 
-To enable changing the stream title and category directly from the app, you need to set up Twitch authentication.
+### Twitch Requirements
 
-1.  Go to the [Twitch Developer Console](https://dev.twitch.tv/console/apps) and log in.
-2.  Click "Register Your Application".
-3.  Give your application a Name (e.g., "My Browser Streamer").
-4.  For **OAuth Redirect URLs**, add the following URL:
-    -   \`http://localhost:3001/oauth/callback-implicit\`
-5.  Choose a Category (e.g., "Application Integration").
-6.  Click "Create".
-7.  On the next page, you will see a **Client ID**. Copy this value.
-8.  Paste the Client ID into the "Twitch Client ID" field in the web interface.
-9.  Click "Authorize with Twitch" and approve the connection in the popup window.
+1. **Twitch Account** with streaming enabled
+2. **Twitch Stream Key**
+   - Go to [Twitch Creator Dashboard](https://dashboard.twitch.tv/)
+   - Navigate to Settings → Stream
+   - Copy your "Primary Stream key"
 
-## FFmpeg Installation
+3. **Twitch Developer Application** (Optional - for title/category changes)
+   - Go to [Twitch Developer Console](https://dev.twitch.tv/console/apps)
+   - Click "Register Your Application"
+   - Application Name: \`Your App Name\` (e.g., "My Browser Streamer")
+   - OAuth Redirect URLs: \`http://localhost:3001/oauth/callback\`
+   - Category: "Application Integration"
+   - Copy the **Client ID** after creation
 
-FFmpeg is required for encoding the stream. You must install it and ensure it's in your system's PATH.
+## 🛠️ Installation
 
-### Windows
--   Download from [ffmpeg.org](https://ffmpeg.org/download.html).
--   Extract the files and add the \`bin\` folder to your system's PATH environment variable.
+1. **Extract the Project**
+   ```bash
+   # Extract the downloaded ZIP file to your desired location
+   cd path/to/twitch-stream-bridge
 
-### macOS
--   If you have Homebrew: \`brew install ffmpeg\`
 
-### Linux (Ubuntu/Debian)
--   \`sudo apt update && sudo apt install ffmpeg\`
-
-## Troubleshooting
-
--   **"Could not connect to Node.js bridge"**: Make sure the Node.js server is running (\`npm start\`) and not blocked by a firewall.
--   **"Connection failed. Check stream key..."**: Verify your Twitch stream key is correct and that you are not already live from another source.
--   **"Authorization failed"**: Ensure the OAuth Redirect URL in your Twitch Application settings is exactly \`http://localhost:3001/oauth/callback-implicit\`.
--   **FFmpeg errors in the console**: Make sure FFmpeg is installed correctly and accessible from your terminal (try running \`ffmpeg -version\`).
-`
-        };
-    }
-
-    showToast(message, type = 'info') {
-        this.toast.textContent = message;
-        this.toast.className = `toast show ${type}`;
-        
-        setTimeout(() => {
-            this.toast.classList.remove('show');
-        }, 4000);
-    }
-}
-
-// Load JSZip library
-const script = document.createElement('script');
-script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-document.head.appendChild(script);
-
-// Initialize the application
-document.addEventListener('DOMContentLoaded', () => {
-    new TwitchStreamBridge();
-});
+</edits_to_apply>
