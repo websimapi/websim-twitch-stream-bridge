@@ -16,13 +16,7 @@ class OAuthManager {
             return;
         }
 
-        const formData = this.uiManager.getFormData();
-        if (!formData.twitchUsername) {
-            this.uiManager.showToast('Please enter your Twitch username first', 'error');
-            return;
-        }
-
-        const redirectUri = 'http://localhost:3001';
+        const redirectUri = `http://localhost:3001?client_id=${clientId}`;
         const scope = 'channel:manage:broadcast';
         const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
         
@@ -37,17 +31,8 @@ class OAuthManager {
                 this.oauthToken = event.data.token;
                 await this.fetchTwitchUserId(clientId);
                 
-                if (this.userId) {
-                    this.uiManager.setAuthStatus('Successfully authorized! You can now change stream title and category.', 'success');
-                    this.uiManager.authorizeBtn.textContent = 'Re-authorize';
-                    
-                    // Store the token on the server
-                    if (this.bridgeCommunicator) {
-                        await this.bridgeCommunicator.storeOAuthToken(this.oauthToken, this.userId);
-                    }
-                } else {
-                    this.uiManager.setAuthStatus('Authorization failed - could not get user ID', 'error');
-                }
+                this.uiManager.setAuthStatus('Successfully authorized! You can now change stream title and category.', 'success');
+                this.uiManager.authorizeBtn.textContent = 'Re-authorize';
                 
                 window.removeEventListener('message', messageListener);
                 if (authWindow) {
@@ -74,11 +59,7 @@ class OAuthManager {
         if (!this.oauthToken || !clientId) return;
         
         try {
-            const formData = this.uiManager.getFormData();
-            console.log('🔍 Fetching user ID for username:', formData.twitchUsername);
-            
-            // First try to get user by username
-            const response = await fetch(`https://api.twitch.tv/helix/users?login=${encodeURIComponent(formData.twitchUsername)}`, {
+            const response = await fetch('https://api.twitch.tv/helix/users', {
                 headers: {
                     'Authorization': `Bearer ${this.oauthToken}`,
                     'Client-ID': clientId
@@ -88,14 +69,15 @@ class OAuthManager {
             
             if (data.data && data.data.length > 0) {
                 this.userId = data.data[0].id;
-                console.log('✅ Found user ID:', this.userId, 'for username:', formData.twitchUsername);
+                if (this.bridgeCommunicator) {
+                    await this.bridgeCommunicator.storeOAuthToken(this.oauthToken, this.userId);
+                }
             } else {
-                console.log('⚠️ No user found for username:', formData.twitchUsername);
-                this.uiManager.showToast('Could not find Twitch user with that username', 'error');
+                this.uiManager.showToast('Could not fetch Twitch User ID.', 'error');
             }
         } catch(e) {
             console.error('Error fetching Twitch User ID:', e);
-            this.uiManager.showToast('Error fetching Twitch User ID: ' + e.message, 'error');
+            this.uiManager.showToast('Error fetching Twitch User ID.', 'error');
         }
     }
 

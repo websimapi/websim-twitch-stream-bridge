@@ -85,37 +85,55 @@ let userId = null;
 
 // OAuth callback page - handle root path for OAuth redirect
 app.get('/', (req, res) => {
+    const clientId = req.query.client_id;
     res.send(\`
     <!DOCTYPE html>
     <html>
     <head>
         <title>Twitch Authorization</title>
         <script>
-            document.addEventListener('DOMContentLoaded', () => {
+            document.addEventListener('DOMContentLoaded', async () => {
                 const hash = window.location.hash.substring(1);
                 const params = new URLSearchParams(hash);
                 const accessToken = params.get('access_token');
+                const clientId = new URLSearchParams(window.location.search).get('client_id');
 
-                if (accessToken) {
-                    // Send token back to parent window if opened as popup
-                    if (window.opener) {
-                        window.opener.postMessage({ type: 'oauth_token', token: accessToken }, '*');
-                        window.close();
-                    } else {
-                        // Fallback: store on server and redirect
-                        fetch('/oauth/store-token', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ token: accessToken, userId: null })
-                        }).then(() => {
-                            window.location.href = '/success';
-                        }).catch(err => {
-                            console.error('Error storing token:', err);
-                            document.body.innerHTML = '<h2>Error storing authorization token</h2>';
+                if (accessToken && clientId) {
+                    try {
+                        // Fetch user ID from Twitch API
+                        const userResponse = await fetch('https://api.twitch.tv/helix/users', {
+                            headers: {
+                                'Authorization': \`Bearer \${accessToken}\`,
+                                'Client-ID': clientId
+                            }
                         });
+                        const userData = await userResponse.json();
+                        
+                        if (userData.data && userData.data.length > 0) {
+                            const userId = userData.data[0].id;
+                            console.log('✅ Fetched user ID:', userId, 'for user:', userData.data[0].display_name);
+                            
+                            // Send token and userId to server
+                            const storeResponse = await fetch('/oauth/store-token', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ token: accessToken, userId: userId })
+                            });
+                            
+                            if (storeResponse.ok) {
+                                window.location.href = '/success';
+                            } else {
+                                throw new Error('Failed to store token');
+                            }
+                        } else {
+                            throw new Error('Could not fetch user data');
+                        }
+                    } catch (err) {
+                        console.error('Error processing authorization:', err);
+                        document.body.innerHTML = '<h2>Error processing authorization: ' + err.message + '</h2>';
                     }
                 } else {
-                    document.body.innerHTML = '<h2>No access token found in URL</h2>';
+                    document.body.innerHTML = '<h2>Missing access token or client ID</h2>';
                 }
             });
         </script>
@@ -176,17 +194,17 @@ app.get('/oauth/callback-implicit', (req, res) => {
 });
 
 app.post('/oauth/store-token', (req, res) => {
-    const { token, userId: newUserId } = req.body;
+    const { token, userId } = req.body;
     console.log('📡 OAuth token received:', {
         tokenLength: token ? token.length : 0,
-        userId: newUserId || 'Not provided',
+        userId: userId || 'Not provided',
         timestamp: new Date().toISOString()
     });
     
-    if (token && newUserId) {
+    if (token && userId) {
         oauthToken = token;
-        userId = newUserId;
-        console.log('✅ OAuth token stored successfully');
+        userId = userId;
+        console.log('✅ OAuth token and user ID stored successfully');
         res.json({ success: true });
     } else {
         console.log('❌ OAuth token storage failed - missing token or userId');
