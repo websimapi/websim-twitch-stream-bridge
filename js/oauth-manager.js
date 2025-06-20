@@ -16,7 +16,7 @@ class OAuthManager {
             return;
         }
 
-        const redirectUri = 'http://localhost';
+        const redirectUri = 'http://localhost:3001';
         const scope = 'channel:manage:broadcast';
         const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
         
