@@ -86,111 +86,105 @@ let userId = null;
 // OAuth callback page - handle root path for OAuth redirect
 app.get('/', (req, res) => {
     const clientId = req.query.client_id;
-    res.send(\`
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Twitch Authorization</title>
-        <script>
-            document.addEventListener('DOMContentLoaded', async () => {
-                const hash = window.location.hash.substring(1);
-                const params = new URLSearchParams(hash);
-                const accessToken = params.get('access_token');
-                const clientId = new URLSearchParams(window.location.search).get('client_id');
+    res.send(\`<!DOCTYPE html>
+<html>
+<head>
+    <title>Twitch Authorization</title>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const hash = window.location.hash.substring(1);
+            const params = new URLSearchParams(hash);
+            const accessToken = params.get('access_token');
+            const clientId = new URLSearchParams(window.location.search).get('client_id');
 
-                if (accessToken && clientId) {
-                    try {
-                        // Fetch user ID from Twitch API
-                        const userResponse = await fetch('https://api.twitch.tv/helix/users', {
-                            headers: {
-                                'Authorization': \`Bearer \${accessToken}\`,
-                                'Client-ID': clientId
-                            }
-                        });
-                        const userData = await userResponse.json();
-                        
-                        if (userData.data && userData.data.length > 0) {
-                            const userId = userData.data[0].id;
-                            console.log('✅ Fetched user ID:', userId, 'for user:', userData.data[0].display_name);
-                            
-                            // Send token and userId to server
-                            const storeResponse = await fetch('/oauth/store-token', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ token: accessToken, userId: userId })
-                            });
-                            
-                            if (storeResponse.ok) {
-                                window.location.href = '/success';
-                            } else {
-                                throw new Error('Failed to store token');
-                            }
-                        } else {
-                            throw new Error('Could not fetch user data');
+            if (accessToken && clientId) {
+                try {
+                    // Fetch user ID from Twitch API
+                    const userResponse = await fetch('https://api.twitch.tv/helix/users', {
+                        headers: {
+                            'Authorization': \\\`Bearer \\\${accessToken}\\\`,
+                            'Client-ID': clientId
                         }
-                    } catch (err) {
-                        console.error('Error processing authorization:', err);
-                        document.body.innerHTML = '<h2>Error processing authorization: ' + err.message + '</h2>';
+                    });
+                    const userData = await userResponse.json();
+                    
+                    if (userData.data && userData.data.length > 0) {
+                        const userId = userData.data[0].id;
+                        console.log('✅ Fetched user ID:', userId, 'for user:', userData.data[0].display_name);
+                        
+                        // Send token and userId to server
+                        const storeResponse = await fetch('/oauth/store-token', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ token: accessToken, userId: userId })
+                        });
+                        
+                        if (storeResponse.ok) {
+                            window.location.href = '/success';
+                        } else {
+                            throw new Error('Failed to store token');
+                        }
+                    } else {
+                        throw new Error('Could not fetch user data');
                     }
-                } else {
-                    document.body.innerHTML = '<h2>Missing access token or client ID</h2>';
+                } catch (err) {
+                    console.error('Error processing authorization:', err);
+                    document.body.innerHTML = '<h2>Error processing authorization: ' + err.message + '</h2>';
                 }
-            });
-        </script>
-    </head>
-    <body>
-        <h2>Processing authorization... Please wait.</h2>
-    </body>
-    </html>
-    \`);
+            } else {
+                document.body.innerHTML = '<h2>Missing access token or client ID</h2>';
+            }
+        });
+    </script>
+</head>
+<body>
+    <h2>Processing authorization... Please wait.</h2>
+</body>
+</html>\`);
 });
 
 app.get('/success', (req, res) => {
-    res.send(\`
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Authorization Complete</title>
-        <script>
-            setTimeout(() => {
-                window.close();
-            }, 2000);
-        </script>
-    </head>
-    <body>
-        <h2>Authorization successful! You can close this window or it will close automatically.</h2>
-    </body>
-    </html>
-    \`);
+    res.send(\`<!DOCTYPE html>
+<html>
+<head>
+    <title>Authorization Complete</title>
+    <script>
+        setTimeout(() => {
+            window.close();
+        }, 2000);
+    </script>
+</head>
+<body>
+    <h2>Authorization successful! You can close this window or it will close automatically.</h2>
+</body>
+</html>\`);
 });
 
 // OAuth callback page
 app.get('/oauth/callback-implicit', (req, res) => {
-    res.send(\`
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Twitch Authorization</title>
-        <script>
-            document.addEventListener('DOMContentLoaded', () => {
-                const hash = window.location.hash.substring(1);
-                const params = new URLSearchParams(hash);
-                const accessToken = params.get('access_token');
+    res.send(\`<!DOCTYPE html>
+<html>
+<head>
+    <title>Twitch Authorization</title>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const hash = window.location.hash.substring(1);
+            const params = new URLSearchParams(hash);
+            const accessToken = params.get('access_token');
 
-                if (window.opener && accessToken) {
-                    window.opener.postMessage({ type: 'oauth_token', token: accessToken }, '*');
-                    window.close();
-                } else {
-                    document.body.innerHTML = '<h2>Authorization successful! Please close this window.</h2>';
-                }
-            });
-        </script>
-    </head>
-    <body>
-        <h2>Processing authorization... Please wait.</h2>
-    </body>
-    </html>
-    \`);
+            if (window.opener && accessToken) {
+                window.opener.postMessage({ type: 'oauth_token', token: accessToken }, '*');
+                window.close();
+            } else {
+                document.body.innerHTML = '<h2>Authorization successful! Please close this window.</h2>';
+            }
+        });
+    </script>
+</head>
+<body>
+    <h2>Processing authorization... Please wait.</h2>
+</body>
+</html>\`);
 });
 
 app.post('/oauth/store-token', (req, res) => {
