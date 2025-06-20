@@ -76,6 +76,11 @@ class OAuthManager {
                 if (this.bridgeCommunicator) {
                     await this.bridgeCommunicator.storeOAuthToken(this.oauthToken, this.userId);
                 }
+                
+                // Trigger form validation after storing the token
+                if (this.uiManager.onFormChangeCallback) {
+                    this.uiManager.onFormChangeCallback();
+                }
             } else {
                 this.uiManager.showToast('Could not fetch Twitch User ID.', 'error');
             }
@@ -97,6 +102,11 @@ class OAuthManager {
                 this.uiManager.setAuthStatus('Successfully authorized! You can now change stream title and category.', 'success');
                 this.uiManager.authorizeBtn.textContent = 'Re-authorize';
                 this.uiManager.showToast('Authorization successful! You can now update stream info.', 'success');
+                
+                // Trigger form validation after OAuth completion
+                if (this.uiManager.onFormChangeCallback) {
+                    this.uiManager.onFormChangeCallback();
+                }
             }
         } catch (error) {
             console.error('Error checking OAuth completion:', error);
