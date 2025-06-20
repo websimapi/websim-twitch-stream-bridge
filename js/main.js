@@ -124,6 +124,18 @@ class TwitchStreamBridge {
         const hasAuth = this.oauthManager.hasValidAuth();
         const hasClientId = formData.clientId.length > 0;
         
+        console.log('Form validation state:', {
+            hasStreamKey,
+            hasTitle,
+            hasUsername,
+            hasMediaSource,
+            isConnected,
+            isStreaming,
+            hasAuth,
+            hasClientId,
+            timestamp: new Date().toISOString()
+        });
+        
         this.uiManager.validateForm(hasStreamKey, hasTitle, hasMediaSource, isConnected, isStreaming, hasAuth, hasClientId, hasUsername);
     }
 }

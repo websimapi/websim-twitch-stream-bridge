@@ -24,7 +24,10 @@ class BridgeCommunicator {
                     streamKey: formData.streamKey,
                     title: formData.streamTitle,
                     category: formData.category,
-                    clientId: formData.clientId
+                    clientId: formData.clientId,
+                    username: formData.username,
+                    quality: formData.quality,
+                    framerate: formData.framerate
                 })
             });
 

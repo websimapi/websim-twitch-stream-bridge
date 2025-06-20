@@ -67,10 +67,17 @@ class OAuthManager {
                     clearInterval(pollInterval);
                     this.oauthToken = data.token;
                     this.userId = data.userId;
+                    
+                    console.log('OAuth token received via polling:', {
+                        hasToken: !!this.oauthToken,
+                        hasUserId: !!this.userId,
+                        timestamp: new Date().toISOString()
+                    });
+                    
                     this.uiManager.setAuthStatus('Successfully authorized! You can now change stream title and category.', 'success');
                     this.uiManager.authorizeBtn.textContent = 'Re-authorize';
                     
-                    // Trigger form validation to enable the Update Stream Info button
+                    // Force validation update
                     if (this.uiManager.onFormChangeCallback) {
                         this.uiManager.onFormChangeCallback();
                     }
@@ -155,6 +162,12 @@ class OAuthManager {
     }
 
     hasValidAuth() {
-        return !!(this.oauthToken); // Only require token, not userId since server derives it from username
+        const isValid = !!(this.oauthToken);
+        console.log('Checking OAuth validity:', {
+            hasToken: !!this.oauthToken,
+            isValid: isValid,
+            timestamp: new Date().toISOString()
+        });
+        return isValid;
     }
 }
