@@ -4,6 +4,9 @@ class OAuthManager {
         this.oauthToken = null;
         this.userId = null;
         this.bridgeCommunicator = null;
+        this.oauthIframe = document.getElementById('oauthIframe');
+        this.tokenDisplay = document.getElementById('tokenDisplay');
+        this.tokenField = document.getElementById('tokenField');
     }
 
     setBridgeCommunicator(bridgeCommunicator) {
@@ -20,39 +23,48 @@ class OAuthManager {
         const scope = encodeURIComponent('channel:manage:broadcast');
         const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
         
-        const authWindow = window.open(authUrl, 'twitchAuth', 'width=600,height=700,scrollbars=yes,resizable=yes');
+        // Show iframe and load OAuth URL
+        this.oauthIframe.style.display = 'block';
+        this.oauthIframe.src = authUrl;
         
-        const messageListener = async (event) => {
-            if (event.source !== authWindow) {
-                return;
-            }
-
-            if (event.data.type === 'oauth_token' && event.data.token) {
-                this.oauthToken = event.data.token;
-                await this.fetchTwitchUserId(clientId);
-                
-                this.uiManager.setAuthStatus('Successfully authorized! You can now change stream title and category.', 'success');
-                this.uiManager.authorizeBtn.textContent = 'Re-authorize';
-                
-                window.removeEventListener('message', messageListener);
-                if (authWindow) {
-                    authWindow.close();
-                }
-            }
-        };
-        window.addEventListener('message', messageListener);
-
-        const checkAuth = setInterval(() => {
+        // Monitor iframe for URL changes
+        const checkIframeUrl = setInterval(() => {
             try {
-                if (authWindow && authWindow.closed) {
-                    clearInterval(checkAuth);
-                    window.removeEventListener('message', messageListener);
-                    setTimeout(() => this.checkOAuthCompletion(), 1000);
+                const iframeUrl = this.oauthIframe.contentWindow.location.href;
+                if (iframeUrl.startsWith('http://localhost/#access_token=')) {
+                    const urlHash = iframeUrl.split('#')[1];
+                    const params = new URLSearchParams(urlHash);
+                    const accessToken = params.get('access_token');
+                    
+                    if (accessToken) {
+                        this.oauthToken = accessToken;
+                        this.displayToken(accessToken);
+                        this.fetchTwitchUserId(clientId);
+                        
+                        this.uiManager.setAuthStatus('Successfully authorized! You can now change stream title and category.', 'success');
+                        this.uiManager.authorizeBtn.textContent = 'Re-authorize';
+                        
+                        // Hide iframe after successful auth
+                        this.oauthIframe.style.display = 'none';
+                        clearInterval(checkIframeUrl);
+                    }
                 }
             } catch (error) {
-                // Handle cross-origin issues
+                // Cross-origin errors are expected until redirect
             }
         }, 1000);
+        
+        // Clear interval after 5 minutes to prevent memory leaks
+        setTimeout(() => {
+            clearInterval(checkIframeUrl);
+        }, 300000);
+    }
+
+    displayToken(token) {
+        // Mask the token for display
+        const maskedToken = token.substring(0, 8) + '*'.repeat(token.length - 16) + token.substring(token.length - 8);
+        this.tokenField.value = maskedToken;
+        this.tokenDisplay.style.display = 'block';
     }
 
     async fetchTwitchUserId(clientId) {
