@@ -14,6 +14,7 @@ class UIManager {
         this.includeSystemAudio = document.getElementById('includeSystemAudio');
         this.includeMicrophone = document.getElementById('includeMicrophone');
         this.clientId = document.getElementById('clientId');
+        this.twitchUsername = document.getElementById('twitchUsername');
 
         // OAuth elements
         this.oauthSection = document.getElementById('oauthSection');
@@ -50,6 +51,7 @@ class UIManager {
         this.streamKey.addEventListener('input', () => this.onFormChange());
         this.streamTitle.addEventListener('input', () => this.onFormChange());
         this.clientId.addEventListener('input', () => this.onClientIdChange());
+        this.twitchUsername.addEventListener('input', () => this.onFormChange());
     }
 
     onFormChange() {
@@ -60,9 +62,10 @@ class UIManager {
 
     onClientIdChange() {
         const clientId = this.clientId.value.trim();
-        if (clientId.length > 0) {
+        const username = this.twitchUsername.value.trim();
+        if (clientId.length > 0 && username.length > 0) {
             this.authorizeBtn.style.display = 'block';
-            this.authStatus.textContent = 'Enter Client ID and click Authorize to enable title/category changes';
+            this.authStatus.textContent = 'Enter Client ID and Username, then click Authorize to enable title/category changes';
             this.authStatus.className = 'auth-status';
         } else {
             this.authorizeBtn.style.display = 'none';
@@ -148,7 +151,8 @@ class UIManager {
             framerate: parseInt(this.framerate.value),
             includeSystemAudio: this.includeSystemAudio.checked,
             includeMicrophone: this.includeMicrophone.checked,
-            clientId: this.clientId.value.trim()
+            clientId: this.clientId.value.trim(),
+            twitchUsername: this.twitchUsername.value.trim()
         };
     }
 }
