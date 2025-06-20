@@ -91,24 +91,26 @@ class TwitchStreamBridge {
         const formData = this.uiManager.getFormData();
         const oauthData = this.oauthManager.getAuthData();
         
-        if (!oauthData.token || !formData.clientId) {
-            this.uiManager.showToast('Please authorize with Twitch first', 'error');
+        if (!oauthData.token || !formData.clientId || !formData.username) {
+            this.uiManager.showToast('Please authorize with Twitch and enter username first', 'error');
             return;
         }
 
         this.uiManager.updateStreamInfo.disabled = true;
-        this.uiManager.updateStreamInfo.textContent = 'Updating...';
+        this.uiManager.updateStreamInfo.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>Updating...';
 
         const success = await this.streamManager.updateStreamInfo(formData, oauthData);
         
         this.uiManager.updateStreamInfo.disabled = false;
-        this.uiManager.updateStreamInfo.textContent = 'Update Stream Info';
+        this.uiManager.updateStreamInfo.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>Update Stream Info';
         
         if (success) {
             this.uiManager.showToast('Stream info updated successfully!', 'success');
         } else {
-            this.uiManager.showToast('Failed to update stream info', 'error');
+            this.uiManager.showToast('Failed to update stream info - check console for details', 'error');
         }
+
+        this.validateForm();
     }
 
     validateForm() {

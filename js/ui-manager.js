@@ -127,7 +127,7 @@ class UIManager {
     validateForm(hasStreamKey, hasTitle, hasMediaSource, isConnected, isStreaming, hasAuth, hasClientId, hasUsername) {
         const isValid = hasStreamKey && hasTitle && hasMediaSource && isConnected;
         this.startStream.disabled = !isValid || isStreaming;
-        this.updateStreamInfo.disabled = !hasAuth || !hasClientId || !hasTitle || !hasUsername;
+        this.updateStreamInfo.disabled = !hasAuth || !hasClientId || !hasTitle || !hasUsername || isStreaming;
     }
 
     setMediaSourceSelected(sourceName) {

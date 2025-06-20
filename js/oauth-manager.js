@@ -136,6 +136,11 @@ class OAuthManager {
                 this.userId = data.userId;
                 this.uiManager.setAuthStatus('Successfully authorized! You can now change stream title and category.', 'success');
                 this.uiManager.authorizeBtn.textContent = 'Re-authorize';
+                
+                // Trigger form validation to enable Update Stream Info button
+                if (this.uiManager.onFormChangeCallback) {
+                    this.uiManager.onFormChangeCallback();
+                }
             }
         } catch (error) {
             console.error('Error checking OAuth completion:', error);
@@ -150,6 +155,6 @@ class OAuthManager {
     }
 
     hasValidAuth() {
-        return !!(this.oauthToken && this.userId);
+        return !!(this.oauthToken); // Only require token, not userId since server derives it from username
     }
 }
