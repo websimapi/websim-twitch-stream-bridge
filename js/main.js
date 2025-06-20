@@ -91,8 +91,8 @@ class TwitchStreamBridge {
         const formData = this.uiManager.getFormData();
         const oauthData = this.oauthManager.getAuthData();
         
-        if (!oauthData.token || !formData.clientId || !formData.username) {
-            this.uiManager.showToast('Please authorize with Twitch and enter username first', 'error');
+        if (!formData.clientId || !formData.username) {
+            this.uiManager.showToast('Please enter your Client ID and Username first', 'error');
             return;
         }
 

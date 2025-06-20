@@ -193,7 +193,14 @@ app.post('/test-rtmp', (req, res) => {
 });
 
 app.post('/update-stream-info', async (req, res) => {
-    const { clientId, oauthToken, username, title, category } = req.body;
+    const { clientId, username, title, category } = req.body;
+    let { oauthToken } = req.body;
+    
+    // If client doesn't send a token, use the one stored on the server
+    if (!oauthToken && oauthToken) {
+        oauthToken = oauthToken;
+        console.log('💡 Using server-stored OAuth token for update.');
+    }
     
     console.log('🔄 Stream info update requested:', {
         clientId: clientId ? clientId.substring(0, 8) + '...' : 'Not provided',

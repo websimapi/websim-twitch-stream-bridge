@@ -128,7 +128,9 @@ class UIManager {
         const isValid = hasStreamKey && hasTitle && hasMediaSource && isConnected;
         this.startStream.disabled = !isValid || isStreaming;
         
-        const canUpdateStreamInfo = hasAuth && hasClientId && hasTitle && hasUsername && !isStreaming;
+        // Let user attempt to update if they've filled out the fields.
+        // The server will have the final say on whether it has a token.
+        const canUpdateStreamInfo = hasClientId && hasTitle && hasUsername && !isStreaming;
         this.updateStreamInfo.disabled = !canUpdateStreamInfo;
         
         console.log('UI validation:', {
