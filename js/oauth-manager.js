@@ -89,12 +89,12 @@ class OAuthManager {
     }
 
     async fetchTwitchUserId(clientId) {
-        // Use manual user ID input instead of API fetch
+        // Use manual username input instead of API fetch for user validation
         const formData = this.uiManager.getFormData();
-        if (formData.userId) {
-            this.userId = formData.userId;
+        if (formData.username) {
+            // Store the token, user ID will be resolved on the server side
             if (this.bridgeCommunicator) {
-                await this.bridgeCommunicator.storeOAuthToken(this.oauthToken, this.userId);
+                await this.bridgeCommunicator.storeOAuthToken(this.oauthToken, null);
             }
             return;
         }

@@ -193,23 +193,40 @@ app.post('/test-rtmp', (req, res) => {
 });
 
 app.post('/update-stream-info', async (req, res) => {
-    const { clientId, oauthToken, userId, title, category } = req.body;
+    const { clientId, oauthToken, username, title, category } = req.body;
     
     console.log('🔄 Stream info update requested:', {
         clientId: clientId ? clientId.substring(0, 8) + '...' : 'Not provided',
         hasToken: !!oauthToken,
-        userId: userId || 'Not provided',
+        username: username || 'Not provided',
         title: title || 'Not provided',
         category: category || 'Not provided',
         timestamp: new Date().toISOString()
     });
     
-    if (!clientId || !oauthToken || !userId) {
+    if (!clientId || !oauthToken || !username) {
         console.log('❌ Stream info update failed - missing required parameters');
         return res.status(400).json({ success: false, error: 'Missing required parameters.' });
     }
 
     try {
+        // First, get user ID from username
+        console.log('👤 Looking up user ID for username:', username);
+        const userResponse = await axios.get(\`https://api.twitch.tv/helix/users?login=\${username}\`, {
+            headers: {
+                'Authorization': \`Bearer \${oauthToken}\`,
+                'Client-Id': clientId
+            }
+        });
+        
+        if (!userResponse.data.data || userResponse.data.data.length === 0) {
+            console.log('❌ Username not found:', username);
+            return res.status(400).json({ success: false, error: 'Username not found.' });
+        }
+        
+        const userId = userResponse.data.data[0].id;
+        console.log('✅ Found user ID:', userId, 'for username:', username);
+        
         let gameId = null;
         
         if (category) {
