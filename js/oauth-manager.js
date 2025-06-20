@@ -16,8 +16,8 @@ class OAuthManager {
             return;
         }
 
-        const redirectUri = 'http://localhost:3001/oauth/callback-implicit';
-        const scope = encodeURIComponent('channel:manage:broadcast');
+        const redirectUri = 'http://localhost';
+        const scope = 'channel:manage:broadcast';
         const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
         
         const authWindow = window.open(authUrl, 'twitchAuth', 'width=600,height=700,scrollbars=yes,resizable=yes');
