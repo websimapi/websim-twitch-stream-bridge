@@ -34,6 +34,11 @@ class OAuthManager {
                 this.uiManager.setAuthStatus('Successfully authorized! You can now change stream title and category.', 'success');
                 this.uiManager.authorizeBtn.textContent = 'Re-authorize';
                 
+                // Trigger form validation after successful OAuth
+                if (this.uiManager.onFormChangeCallback) {
+                    this.uiManager.onFormChangeCallback();
+                }
+                
                 window.removeEventListener('message', messageListener);
                 if (authWindow) {
                     authWindow.close();
@@ -47,7 +52,13 @@ class OAuthManager {
                 if (authWindow && authWindow.closed) {
                     clearInterval(checkAuth);
                     window.removeEventListener('message', messageListener);
-                    setTimeout(() => this.checkOAuthCompletion(), 1000);
+                    // Check server for completed OAuth after window closes
+                    setTimeout(() => {
+                        this.checkOAuthCompletion();
+                        if (this.uiManager.onFormChangeCallback) {
+                            this.uiManager.onFormChangeCallback();
+                        }
+                    }, 1000);
                 }
             } catch (error) {
                 // Handle cross-origin issues
@@ -92,6 +103,11 @@ class OAuthManager {
                 this.userId = data.userId;
                 this.uiManager.setAuthStatus('Successfully authorized! You can now change stream title and category.', 'success');
                 this.uiManager.authorizeBtn.textContent = 'Re-authorize';
+                
+                // Trigger form validation after detecting OAuth completion
+                if (this.uiManager.onFormChangeCallback) {
+                    this.uiManager.onFormChangeCallback();
+                }
             }
         } catch (error) {
             console.error('Error checking OAuth completion:', error);
