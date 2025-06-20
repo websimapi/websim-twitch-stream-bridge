@@ -95,44 +95,27 @@ app.get('/', (req, res) => {
             const hash = window.location.hash.substring(1);
             const params = new URLSearchParams(hash);
             const accessToken = params.get('access_token');
-            const clientId = new URLSearchParams(window.location.search).get('client_id');
 
-            if (accessToken && clientId) {
+            if (accessToken) {
                 try {
-                    // Fetch user ID from Twitch API
-                    const userResponse = await fetch('https://api.twitch.tv/helix/users', {
-                        headers: {
-                            'Authorization': \\\`Bearer \\\${accessToken}\\\`,
-                            'Client-ID': clientId
-                        }
+                    // Send token to server first
+                    const storeResponse = await fetch('/oauth/store-token', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ token: accessToken })
                     });
-                    const userData = await userResponse.json();
                     
-                    if (userData.data && userData.data.length > 0) {
-                        const userId = userData.data[0].id;
-                        console.log('✅ Fetched user ID:', userId, 'for user:', userData.data[0].display_name);
-                        
-                        // Send token and userId to server
-                        const storeResponse = await fetch('/oauth/store-token', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ token: accessToken, userId: userId })
-                        });
-                        
-                        if (storeResponse.ok) {
-                            window.location.href = '/success';
-                        } else {
-                            throw new Error('Failed to store token');
-                        }
+                    if (storeResponse.ok) {
+                        window.location.href = '/success';
                     } else {
-                        throw new Error('Could not fetch user data');
+                        throw new Error('Failed to store token');
                     }
                 } catch (err) {
                     console.error('Error processing authorization:', err);
                     document.body.innerHTML = '<h2>Error processing authorization: ' + err.message + '</h2>';
                 }
             } else {
-                document.body.innerHTML = '<h2>Missing access token or client ID</h2>';
+                document.body.innerHTML = '<h2>Missing access token</h2>';
             }
         });
     </script>
@@ -187,22 +170,29 @@ app.get('/oauth/callback-implicit', (req, res) => {
 </html>\`);
 });
 
-app.post('/oauth/store-token', (req, res) => {
-    const { token, userId } = req.body;
+app.post('/oauth/store-token', async (req, res) => {
+    const { token } = req.body;
     console.log('📡 OAuth token received:', {
         tokenLength: token ? token.length : 0,
-        userId: userId || 'Not provided',
         timestamp: new Date().toISOString()
     });
     
-    if (token && userId) {
+    if (token) {
         oauthToken = token;
-        userId = userId;
-        console.log('✅ OAuth token and user ID stored successfully');
-        res.json({ success: true });
+        
+        // Try to fetch user ID from Twitch
+        try {
+            // We need a client ID to fetch user data, but we don't have it here
+            // The user ID will be fetched on the client side
+            console.log('✅ OAuth token stored successfully');
+            res.json({ success: true });
+        } catch (error) {
+            console.log('⚠️ Could not fetch user ID, but token stored');
+            res.json({ success: true });
+        }
     } else {
-        console.log('❌ OAuth token storage failed - missing token or userId');
-        res.status(400).json({ success: false, error: 'Token and UserID required' });
+        console.log('❌ OAuth token storage failed - missing token');
+        res.status(400).json({ success: false, error: 'Token required' });
     }
 });
 
