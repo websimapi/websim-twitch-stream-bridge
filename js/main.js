@@ -27,6 +27,7 @@ class TwitchStreamBridge {
         this.uiManager.stopStream.addEventListener('click', () => this.handleStopStream());
         this.uiManager.downloadBtn.addEventListener('click', () => this.handleDownload());
         this.uiManager.authorizeBtn.addEventListener('click', () => this.handleAuthorize());
+        this.uiManager.updateStreamInfo.addEventListener('click', () => this.handleUpdateStreamInfo());
     }
 
     async checkInitialConnection() {
@@ -86,6 +87,30 @@ class TwitchStreamBridge {
         this.validateForm();
     }
 
+    async handleUpdateStreamInfo() {
+        const formData = this.uiManager.getFormData();
+        const oauthData = this.oauthManager.getAuthData();
+        
+        if (!oauthData.token || !formData.clientId) {
+            this.uiManager.showToast('Please authorize with Twitch first', 'error');
+            return;
+        }
+
+        this.uiManager.updateStreamInfo.disabled = true;
+        this.uiManager.updateStreamInfo.textContent = 'Updating...';
+
+        const success = await this.streamManager.updateStreamInfo(formData, oauthData);
+        
+        this.uiManager.updateStreamInfo.disabled = false;
+        this.uiManager.updateStreamInfo.textContent = 'Update Stream Info';
+        
+        if (success) {
+            this.uiManager.showToast('Stream info updated successfully!', 'success');
+        } else {
+            this.uiManager.showToast('Failed to update stream info', 'error');
+        }
+    }
+
     validateForm() {
         const formData = this.uiManager.getFormData();
         const hasStreamKey = formData.streamKey.length > 0;
@@ -93,8 +118,10 @@ class TwitchStreamBridge {
         const hasMediaSource = this.mediaCapture.hasMediaSource();
         const isConnected = this.bridgeCommunicator.getConnectionStatus();
         const isStreaming = this.streamManager.isCurrentlyStreaming();
+        const hasAuth = this.oauthManager.hasValidAuth();
+        const hasClientId = formData.clientId.length > 0;
         
-        this.uiManager.validateForm(hasStreamKey, hasTitle, hasMediaSource, isConnected, isStreaming);
+        this.uiManager.validateForm(hasStreamKey, hasTitle, hasMediaSource, isConnected, isStreaming, hasAuth, hasClientId);
     }
 }
 

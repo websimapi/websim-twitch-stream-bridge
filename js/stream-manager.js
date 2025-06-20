@@ -93,14 +93,10 @@ class StreamManager {
                 category: formData.category
             });
 
-            if (success) {
-                this.uiManager.showToast('Stream info updated successfully!', 'success');
-            } else {
-                this.uiManager.showToast('Failed to update stream info', 'error');
-            }
+            return success;
         } catch (error) {
             console.error('Error updating stream info:', error);
-            this.uiManager.showToast('Error updating stream info', 'error');
+            return false;
         }
     }
 

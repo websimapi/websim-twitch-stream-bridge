@@ -172,11 +172,19 @@ app.get('/oauth/callback-implicit', (req, res) => {
 
 app.post('/oauth/store-token', (req, res) => {
     const { token, userId: newUserId } = req.body;
+    console.log('📡 OAuth token received:', {
+        tokenLength: token ? token.length : 0,
+        userId: newUserId || 'Not provided',
+        timestamp: new Date().toISOString()
+    });
+    
     if (token && newUserId) {
         oauthToken = token;
         userId = newUserId;
+        console.log('✅ OAuth token stored successfully');
         res.json({ success: true });
     } else {
+        console.log('❌ OAuth token storage failed - missing token or userId');
         res.status(400).json({ success: false, error: 'Token and UserID required' });
     }
 });
@@ -248,7 +256,17 @@ app.post('/test-rtmp', (req, res) => {
 app.post('/update-stream-info', async (req, res) => {
     const { clientId, oauthToken, userId, title, category } = req.body;
     
+    console.log('🔄 Stream info update requested:', {
+        clientId: clientId ? clientId.substring(0, 8) + '...' : 'Not provided',
+        hasToken: !!oauthToken,
+        userId: userId || 'Not provided',
+        title: title || 'Not provided',
+        category: category || 'Not provided',
+        timestamp: new Date().toISOString()
+    });
+    
     if (!clientId || !oauthToken || !userId) {
+        console.log('❌ Stream info update failed - missing required parameters');
         return res.status(400).json({ success: false, error: 'Missing required parameters.' });
     }
 
@@ -256,6 +274,7 @@ app.post('/update-stream-info', async (req, res) => {
         let gameId = null;
         
         if (category) {
+            console.log('🎮 Looking up game ID for category:', category);
             const gameResponse = await axios.get(\`https://api.twitch.tv/helix/games?name=\${encodeURIComponent(category)}\`, {
                 headers: {
                     'Authorization': \`Bearer \${oauthToken}\`,
@@ -265,12 +284,17 @@ app.post('/update-stream-info', async (req, res) => {
             
             if (gameResponse.data.data.length > 0) {
                 gameId = gameResponse.data.data[0].id;
+                console.log('✅ Found game ID:', gameId, 'for category:', category);
+            } else {
+                console.log('⚠️ No game found for category:', category);
             }
         }
         
         const updateData = {};
         if (title) updateData.title = title;
         if (gameId) updateData.game_id = gameId;
+        
+        console.log('📤 Sending update to Twitch API:', updateData);
         
         const response = await axios.patch(\`https://api.twitch.tv/helix/channels?broadcaster_id=\${userId}\`, updateData, {
             headers: {
@@ -280,9 +304,10 @@ app.post('/update-stream-info', async (req, res) => {
             }
         });
         
+        console.log('✅ Stream info updated successfully');
         res.json({ success: true, message: 'Stream info updated successfully.' });
     } catch (error) {
-        console.error('Error updating stream info:', error.response?.data || error.message);
+        console.error('❌ Error updating stream info:', error.response?.data || error.message);
         res.status(500).json({ 
             success: false, 
             error: error.response?.data?.message || error.message 

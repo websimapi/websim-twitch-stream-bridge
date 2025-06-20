@@ -19,6 +19,7 @@ class UIManager {
         this.oauthSection = document.getElementById('oauthSection');
         this.authorizeBtn = document.getElementById('authorizeBtn');
         this.authStatus = document.getElementById('authStatus');
+        this.updateStreamInfo = document.getElementById('updateStreamInfo');
 
         // Capture elements
         this.selectScreen = document.getElementById('selectScreen');
@@ -120,9 +121,10 @@ class UIManager {
         }, 4000);
     }
 
-    validateForm(hasStreamKey, hasTitle, hasMediaSource, isConnected, isStreaming) {
+    validateForm(hasStreamKey, hasTitle, hasMediaSource, isConnected, isStreaming, hasAuth, hasClientId) {
         const isValid = hasStreamKey && hasTitle && hasMediaSource && isConnected;
         this.startStream.disabled = !isValid || isStreaming;
+        this.updateStreamInfo.disabled = !hasAuth || !hasClientId || !hasTitle;
     }
 
     setMediaSourceSelected(sourceName) {
@@ -150,4 +152,3 @@ class UIManager {
         };
     }
 }
-

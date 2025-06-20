@@ -475,6 +475,24 @@ body {
     border: 1px solid #fecaca;
 }
 
+.update-stream-section {
+    margin: 20px 0;
+    padding: 16px;
+    background: #f8f9ff;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+}
+
+.update-stream-section button {
+    margin-bottom: 8px;
+}
+
+.update-stream-section small {
+    display: block;
+    color: #6b7280;
+    font-size: 14px;
+}
+
 @media (max-width: 768px) {
     .main-content {
         grid-template-columns: 1fr;
