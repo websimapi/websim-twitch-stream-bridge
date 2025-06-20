@@ -19,7 +19,7 @@ class OAuthManager {
             return;
         }
 
-        const redirectUri = 'http://localhost';
+        const redirectUri = 'http://localhost:3001/oauth/callback-implicit';
         const scope = encodeURIComponent('channel:manage:broadcast');
         const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
         
@@ -27,36 +27,31 @@ class OAuthManager {
         this.oauthIframe.style.display = 'block';
         this.oauthIframe.src = authUrl;
         
-        // Monitor iframe for URL changes
-        const checkIframeUrl = setInterval(() => {
-            try {
-                const iframeUrl = this.oauthIframe.contentWindow.location.href;
-                if (iframeUrl.startsWith('http://localhost/#access_token=')) {
-                    const urlHash = iframeUrl.split('#')[1];
-                    const params = new URLSearchParams(urlHash);
-                    const accessToken = params.get('access_token');
-                    
-                    if (accessToken) {
-                        this.oauthToken = accessToken;
-                        this.displayToken(accessToken);
-                        this.fetchTwitchUserId(clientId);
-                        
-                        this.uiManager.setAuthStatus('Successfully authorized! You can now change stream title and category.', 'success');
-                        this.uiManager.authorizeBtn.textContent = 'Re-authorize';
-                        
-                        // Hide iframe after successful auth
-                        this.oauthIframe.style.display = 'none';
-                        clearInterval(checkIframeUrl);
-                    }
-                }
-            } catch (error) {
-                // Cross-origin errors are expected until redirect
+        // Listen for messages from the iframe
+        const messageHandler = (event) => {
+            if (event.origin !== 'http://localhost:3001') return;
+            
+            if (event.data.type === 'oauth_token' && event.data.token) {
+                this.oauthToken = event.data.token;
+                this.displayToken(event.data.token);
+                this.fetchTwitchUserId(clientId);
+                
+                this.uiManager.setAuthStatus('Successfully authorized! You can now change stream title and category.', 'success');
+                this.uiManager.authorizeBtn.textContent = 'Re-authorize';
+                
+                // Hide iframe after successful auth
+                this.oauthIframe.style.display = 'none';
+                
+                // Remove event listener
+                window.removeEventListener('message', messageHandler);
             }
-        }, 1000);
+        };
         
-        // Clear interval after 5 minutes to prevent memory leaks
+        window.addEventListener('message', messageHandler);
+        
+        // Clean up event listener after 5 minutes
         setTimeout(() => {
-            clearInterval(checkIframeUrl);
+            window.removeEventListener('message', messageHandler);
         }, 300000);
     }
 
