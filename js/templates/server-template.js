@@ -107,25 +107,21 @@ app.get('/oauth/callback-implicit', (req, res) => {
 });
 
 app.post('/oauth/store-token', async (req, res) => {
-    const { token } = req.body;
+    const { token, userId: providedUserId } = req.body;
     console.log('📡 OAuth token received:', {
         tokenLength: token ? token.length : 0,
+        userId: providedUserId || 'Not provided',
         timestamp: new Date().toISOString()
     });
     
     if (token) {
         oauthToken = token;
-        
-        // Try to fetch user ID from Twitch
-        try {
-            // We need a client ID to fetch user data, but we don't have it here
-            // The user ID will be fetched on the client side
-            console.log('✅ OAuth token stored successfully');
-            res.json({ success: true });
-        } catch (error) {
-            console.log('⚠️ Could not fetch user ID, but token stored');
-            res.json({ success: true });
+        if (providedUserId) {
+            userId = providedUserId;
         }
+        
+        console.log('✅ OAuth token stored successfully');
+        res.json({ success: true });
     } else {
         console.log('❌ OAuth token storage failed - missing token');
         res.status(400).json({ success: false, error: 'Token required' });

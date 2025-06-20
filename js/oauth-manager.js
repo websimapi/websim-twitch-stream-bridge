@@ -22,6 +22,9 @@ class OAuthManager {
         
         const authWindow = window.open(authUrl, 'twitchAuth', 'width=600,height=700,scrollbars=yes,resizable=yes');
         
+        // Start polling for OAuth completion
+        this.startOAuthPolling(clientId);
+        
         const messageListener = async (event) => {
             if (event.source !== authWindow) {
                 return;
@@ -47,12 +50,42 @@ class OAuthManager {
                 if (authWindow && authWindow.closed) {
                     clearInterval(checkAuth);
                     window.removeEventListener('message', messageListener);
-                    setTimeout(() => this.checkOAuthCompletion(), 1000);
                 }
             } catch (error) {
                 // Handle cross-origin issues
             }
         }, 1000);
+    }
+
+    startOAuthPolling(clientId) {
+        // Poll every 2 seconds for OAuth completion
+        const pollInterval = setInterval(async () => {
+            try {
+                const data = await this.bridgeCommunicator.getOAuthToken();
+                
+                if (data.success && data.token) {
+                    clearInterval(pollInterval);
+                    this.oauthToken = data.token;
+                    this.userId = data.userId;
+                    this.uiManager.setAuthStatus('Successfully authorized! You can now change stream title and category.', 'success');
+                    this.uiManager.authorizeBtn.textContent = 'Re-authorize';
+                    
+                    // Trigger form validation to enable the Update Stream Info button
+                    if (this.uiManager.onFormChangeCallback) {
+                        this.uiManager.onFormChangeCallback();
+                    }
+                    
+                    this.uiManager.showToast('OAuth token received - you can now update stream info!', 'success');
+                }
+            } catch (error) {
+                console.error('Error polling for OAuth completion:', error);
+            }
+        }, 2000);
+        
+        // Stop polling after 5 minutes to prevent infinite polling
+        setTimeout(() => {
+            clearInterval(pollInterval);
+        }, 300000);
     }
 
     async fetchTwitchUserId(clientId) {
