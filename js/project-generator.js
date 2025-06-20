@@ -83,6 +83,64 @@ let ffmpegProcess = null;
 let oauthToken = null;
 let userId = null;
 
+// OAuth callback page - handle root path for OAuth redirect
+app.get('/', (req, res) => {
+    res.send(\`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Twitch Authorization</title>
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                const hash = window.location.hash.substring(1);
+                const params = new URLSearchParams(hash);
+                const accessToken = params.get('access_token');
+
+                if (accessToken) {
+                    // Send token to server
+                    fetch('/oauth/store-token', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ token: accessToken, userId: null })
+                    }).then(() => {
+                        // Redirect back to main app or close window
+                        window.location.href = '/success';
+                    }).catch(err => {
+                        console.error('Error storing token:', err);
+                        document.body.innerHTML = '<h2>Error storing authorization token</h2>';
+                    });
+                } else {
+                    document.body.innerHTML = '<h2>No access token found</h2>';
+                }
+            });
+        </script>
+    </head>
+    <body>
+        <h2>Processing authorization... Please wait.</h2>
+    </body>
+    </html>
+    \`);
+});
+
+app.get('/success', (req, res) => {
+    res.send(\`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Authorization Complete</title>
+        <script>
+            setTimeout(() => {
+                window.close();
+            }, 2000);
+        </script>
+    </head>
+    <body>
+        <h2>Authorization successful! You can close this window or it will close automatically.</h2>
+    </body>
+    </html>
+    \`);
+});
+
 // OAuth callback page
 app.get('/oauth/callback-implicit', (req, res) => {
     res.send(\`
