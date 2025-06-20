@@ -4,9 +4,6 @@ class OAuthManager {
         this.oauthToken = null;
         this.userId = null;
         this.bridgeCommunicator = null;
-        this.oauthIframe = document.getElementById('oauthIframe');
-        this.tokenDisplay = document.getElementById('tokenDisplay');
-        this.tokenField = document.getElementById('tokenField');
     }
 
     setBridgeCommunicator(bridgeCommunicator) {
@@ -23,43 +20,39 @@ class OAuthManager {
         const scope = encodeURIComponent('channel:manage:broadcast');
         const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
         
-        // Show iframe and load OAuth URL
-        this.oauthIframe.style.display = 'block';
-        this.oauthIframe.src = authUrl;
+        const authWindow = window.open(authUrl, 'twitchAuth', 'width=600,height=700,scrollbars=yes,resizable=yes');
         
-        // Listen for messages from the iframe
-        const messageHandler = (event) => {
-            if (event.origin !== 'http://localhost:3001') return;
-            
+        const messageListener = async (event) => {
+            if (event.source !== authWindow) {
+                return;
+            }
+
             if (event.data.type === 'oauth_token' && event.data.token) {
                 this.oauthToken = event.data.token;
-                this.displayToken(event.data.token);
-                this.fetchTwitchUserId(clientId);
+                await this.fetchTwitchUserId(clientId);
                 
                 this.uiManager.setAuthStatus('Successfully authorized! You can now change stream title and category.', 'success');
                 this.uiManager.authorizeBtn.textContent = 'Re-authorize';
                 
-                // Hide iframe after successful auth
-                this.oauthIframe.style.display = 'none';
-                
-                // Remove event listener
-                window.removeEventListener('message', messageHandler);
+                window.removeEventListener('message', messageListener);
+                if (authWindow) {
+                    authWindow.close();
+                }
             }
         };
-        
-        window.addEventListener('message', messageHandler);
-        
-        // Clean up event listener after 5 minutes
-        setTimeout(() => {
-            window.removeEventListener('message', messageHandler);
-        }, 300000);
-    }
+        window.addEventListener('message', messageListener);
 
-    displayToken(token) {
-        // Mask the token for display
-        const maskedToken = token.substring(0, 8) + '*'.repeat(token.length - 16) + token.substring(token.length - 8);
-        this.tokenField.value = maskedToken;
-        this.tokenDisplay.style.display = 'block';
+        const checkAuth = setInterval(() => {
+            try {
+                if (authWindow && authWindow.closed) {
+                    clearInterval(checkAuth);
+                    window.removeEventListener('message', messageListener);
+                    setTimeout(() => this.checkOAuthCompletion(), 1000);
+                }
+            } catch (error) {
+                // Handle cross-origin issues
+            }
+        }, 1000);
     }
 
     async fetchTwitchUserId(clientId) {

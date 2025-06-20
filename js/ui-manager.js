@@ -63,11 +63,6 @@ class UIManager {
             this.authorizeBtn.style.display = 'block';
             this.authStatus.textContent = 'Enter Client ID and click Authorize to enable title/category changes';
             this.authStatus.className = 'auth-status';
-            // Hide iframe when client ID changes
-            const iframe = document.getElementById('oauthIframe');
-            const tokenDisplay = document.getElementById('tokenDisplay');
-            if (iframe) iframe.style.display = 'none';
-            if (tokenDisplay) tokenDisplay.style.display = 'none';
         } else {
             this.authorizeBtn.style.display = 'none';
             this.authStatus.textContent = '';
@@ -155,3 +150,4 @@ class UIManager {
         };
     }
 }
+
