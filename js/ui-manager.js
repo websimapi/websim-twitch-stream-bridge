@@ -14,6 +14,7 @@ class UIManager {
         this.includeSystemAudio = document.getElementById('includeSystemAudio');
         this.includeMicrophone = document.getElementById('includeMicrophone');
         this.clientId = document.getElementById('clientId');
+        this.userId = document.getElementById('userId');
 
         // OAuth elements
         this.oauthSection = document.getElementById('oauthSection');
@@ -50,6 +51,7 @@ class UIManager {
         this.streamKey.addEventListener('input', () => this.onFormChange());
         this.streamTitle.addEventListener('input', () => this.onFormChange());
         this.clientId.addEventListener('input', () => this.onClientIdChange());
+        this.userId.addEventListener('input', () => this.onFormChange());
     }
 
     onFormChange() {
@@ -124,7 +126,7 @@ class UIManager {
     validateForm(hasStreamKey, hasTitle, hasMediaSource, isConnected, isStreaming, hasAuth, hasClientId) {
         const isValid = hasStreamKey && hasTitle && hasMediaSource && isConnected;
         this.startStream.disabled = !isValid || isStreaming;
-        this.updateStreamInfo.disabled = !hasAuth || !hasClientId || !hasTitle;
+        this.updateStreamInfo.disabled = !hasAuth || !hasClientId || !hasTitle || !this.userId.value.trim();
     }
 
     setMediaSourceSelected(sourceName) {
@@ -148,7 +150,8 @@ class UIManager {
             framerate: parseInt(this.framerate.value),
             includeSystemAudio: this.includeSystemAudio.checked,
             includeMicrophone: this.includeMicrophone.checked,
-            clientId: this.clientId.value.trim()
+            clientId: this.clientId.value.trim(),
+            userId: this.userId.value.trim()
         };
     }
 }

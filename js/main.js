@@ -115,6 +115,7 @@ class TwitchStreamBridge {
         const formData = this.uiManager.getFormData();
         const hasStreamKey = formData.streamKey.length > 0;
         const hasTitle = formData.streamTitle.length > 0;
+        const hasUserId = formData.userId.length > 0;
         const hasMediaSource = this.mediaCapture.hasMediaSource();
         const isConnected = this.bridgeCommunicator.getConnectionStatus();
         const isStreaming = this.streamManager.isCurrentlyStreaming();

@@ -88,7 +88,7 @@ class StreamManager {
             const success = await this.bridgeCommunicator.updateStreamInfo({
                 clientId: formData.clientId,
                 oauthToken: oauthData.token,
-                userId: oauthData.userId,
+                userId: formData.userId || oauthData.userId,
                 title: formData.streamTitle,
                 category: formData.category
             });
