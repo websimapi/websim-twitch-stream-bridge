@@ -97,20 +97,25 @@ app.get('/', (req, res) => {
                 const accessToken = params.get('access_token');
 
                 if (accessToken) {
-                    // Send token to server
-                    fetch('/oauth/store-token', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ token: accessToken, userId: null })
-                    }).then(() => {
-                        // Redirect back to main app or close window
-                        window.location.href = '/success';
-                    }).catch(err => {
-                        console.error('Error storing token:', err);
-                        document.body.innerHTML = '<h2>Error storing authorization token</h2>';
-                    });
+                    // Send token back to parent window if opened as popup
+                    if (window.opener) {
+                        window.opener.postMessage({ type: 'oauth_token', token: accessToken }, '*');
+                        window.close();
+                    } else {
+                        // Fallback: store on server and redirect
+                        fetch('/oauth/store-token', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ token: accessToken, userId: null })
+                        }).then(() => {
+                            window.location.href = '/success';
+                        }).catch(err => {
+                            console.error('Error storing token:', err);
+                            document.body.innerHTML = '<h2>Error storing authorization token</h2>';
+                        });
+                    }
                 } else {
-                    document.body.innerHTML = '<h2>No access token found</h2>';
+                    document.body.innerHTML = '<h2>No access token found in URL</h2>';
                 }
             });
         </script>
