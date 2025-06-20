@@ -18,12 +18,10 @@ class OAuthManager {
 
         const redirectUri = `http://localhost:3001`;
         const scope = 'channel:manage:broadcast';
-        const state = encodeURIComponent(clientId); // Pass client_id in state
-        const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}&state=${state}`;
+        const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
         
         const authWindow = window.open(authUrl, 'twitchAuth', 'width=600,height=700,scrollbars=yes,resizable=yes');
         
-        // This listener is a fallback, but primary logic is now server-side.
         const messageListener = async (event) => {
             if (event.source !== authWindow) {
                 return;
@@ -44,16 +42,12 @@ class OAuthManager {
         };
         window.addEventListener('message', messageListener);
 
-        const checkAuth = setInterval(async () => {
+        const checkAuth = setInterval(() => {
             try {
                 if (authWindow && authWindow.closed) {
                     clearInterval(checkAuth);
-                    // Check for OAuth completion after window closes
-                    await this.checkOAuthCompletion();
-                    // Trigger form validation to update UI
-                    if (this.uiManager.onFormChangeCallback) {
-                        this.uiManager.onFormChangeCallback();
-                    }
+                    window.removeEventListener('message', messageListener);
+                    setTimeout(() => this.checkOAuthCompletion(), 1000);
                 }
             } catch (error) {
                 // Handle cross-origin issues
@@ -78,11 +72,6 @@ class OAuthManager {
                 if (this.bridgeCommunicator) {
                     await this.bridgeCommunicator.storeOAuthToken(this.oauthToken, this.userId);
                 }
-                
-                // Trigger form validation after storing the token
-                if (this.uiManager.onFormChangeCallback) {
-                    this.uiManager.onFormChangeCallback();
-                }
             } else {
                 this.uiManager.showToast('Could not fetch Twitch User ID.', 'error');
             }
@@ -98,17 +87,11 @@ class OAuthManager {
         try {
             const data = await this.bridgeCommunicator.getOAuthToken();
             
-            if (data.success && data.token && data.userId) {
+            if (data.success && data.token) {
                 this.oauthToken = data.token;
                 this.userId = data.userId;
                 this.uiManager.setAuthStatus('Successfully authorized! You can now change stream title and category.', 'success');
                 this.uiManager.authorizeBtn.textContent = 'Re-authorize';
-                this.uiManager.showToast('Authorization successful! You can now update stream info.', 'success');
-                
-                // Trigger form validation after OAuth completion
-                if (this.uiManager.onFormChangeCallback) {
-                    this.uiManager.onFormChangeCallback();
-                }
             }
         } catch (error) {
             console.error('Error checking OAuth completion:', error);
