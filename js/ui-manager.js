@@ -124,15 +124,7 @@ class UIManager {
     validateForm(hasStreamKey, hasTitle, hasMediaSource, isConnected, isStreaming, hasAuth, hasClientId) {
         const isValid = hasStreamKey && hasTitle && hasMediaSource && isConnected;
         this.startStream.disabled = !isValid || isStreaming;
-        // Allow updating stream info if we have auth, client ID, and title - streaming status doesn't matter
         this.updateStreamInfo.disabled = !hasAuth || !hasClientId || !hasTitle;
-        
-        console.log('Form validation:', {
-            hasAuth,
-            hasClientId,
-            hasTitle,
-            updateStreamInfoDisabled: this.updateStreamInfo.disabled
-        });
     }
 
     setMediaSourceSelected(sourceName) {

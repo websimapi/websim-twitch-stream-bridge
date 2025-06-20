@@ -34,11 +34,6 @@ class OAuthManager {
                 this.uiManager.setAuthStatus('Successfully authorized! You can now change stream title and category.', 'success');
                 this.uiManager.authorizeBtn.textContent = 'Re-authorize';
                 
-                // Trigger form validation after successful OAuth
-                if (this.uiManager.onFormChangeCallback) {
-                    this.uiManager.onFormChangeCallback();
-                }
-                
                 window.removeEventListener('message', messageListener);
                 if (authWindow) {
                     authWindow.close();
@@ -47,18 +42,16 @@ class OAuthManager {
         };
         window.addEventListener('message', messageListener);
 
-        const checkAuth = setInterval(() => {
+        const checkAuth = setInterval(async () => {
             try {
                 if (authWindow && authWindow.closed) {
                     clearInterval(checkAuth);
-                    window.removeEventListener('message', messageListener);
-                    // Check server for completed OAuth after window closes
-                    setTimeout(() => {
-                        this.checkOAuthCompletion();
-                        if (this.uiManager.onFormChangeCallback) {
-                            this.uiManager.onFormChangeCallback();
-                        }
-                    }, 1000);
+                    // Check for OAuth completion after window closes
+                    await this.checkOAuthCompletion();
+                    // Trigger form validation to update UI
+                    if (this.uiManager.onFormChangeCallback) {
+                        this.uiManager.onFormChangeCallback();
+                    }
                 }
             } catch (error) {
                 // Handle cross-origin issues
@@ -103,11 +96,7 @@ class OAuthManager {
                 this.userId = data.userId;
                 this.uiManager.setAuthStatus('Successfully authorized! You can now change stream title and category.', 'success');
                 this.uiManager.authorizeBtn.textContent = 'Re-authorize';
-                
-                // Trigger form validation after detecting OAuth completion
-                if (this.uiManager.onFormChangeCallback) {
-                    this.uiManager.onFormChangeCallback();
-                }
+                this.uiManager.showToast('Authorization successful! You can now update stream info.', 'success');
             }
         } catch (error) {
             console.error('Error checking OAuth completion:', error);
