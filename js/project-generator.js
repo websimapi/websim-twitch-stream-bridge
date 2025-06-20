@@ -85,8 +85,7 @@ let userId = null;
 
 // OAuth callback page - handle root path for OAuth redirect
 app.get('/', (req, res) => {
-    const clientId = req.query.client_id;
-    res.send(\`<!DOCTYPE html>
+    res.send(`<!DOCTYPE html>
 <html>
 <head>
     <title>Twitch Authorization</title>
@@ -95,27 +94,32 @@ app.get('/', (req, res) => {
             const hash = window.location.hash.substring(1);
             const params = new URLSearchParams(hash);
             const accessToken = params.get('access_token');
+            const clientIdFromState = params.get('state');
 
-            if (accessToken) {
+            if (accessToken && clientIdFromState) {
                 try {
-                    // Send token to server first
+                    // Send token and clientId to the server to fetch userId and store
                     const storeResponse = await fetch('/oauth/store-token', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ token: accessToken, userId: clientId })
+                        body: JSON.stringify({ token: accessToken, clientId: clientIdFromState })
                     });
                     
                     if (storeResponse.ok) {
                         window.location.href = '/success';
                     } else {
-                        throw new Error('Failed to store token');
+                        const errorData = await storeResponse.json();
+                        throw new Error(errorData.error || 'Failed to store token');
                     }
                 } catch (err) {
                     console.error('Error processing authorization:', err);
                     document.body.innerHTML = '<h2>Error processing authorization: ' + err.message + '</h2>';
                 }
             } else {
-                document.body.innerHTML = '<h2>Missing access token</h2>';
+                let errorMessage = 'Missing required parameters from Twitch.';
+                if (!accessToken) errorMessage += ' Missing access token.';
+                if (!clientIdFromState) errorMessage += ' Missing client ID from state.';
+                document.body.innerHTML = '<h2>' + errorMessage + '</h2>';
             }
         });
     </script>
@@ -123,11 +127,11 @@ app.get('/', (req, res) => {
 <body>
     <h2>Processing authorization... Please wait.</h2>
 </body>
-</html>\`);
+</html>`);
 });
 
 app.get('/success', (req, res) => {
-    res.send(\`<!DOCTYPE html>
+    res.send(`<!DOCTYPE html>
 <html>
 <head>
     <title>Authorization Complete</title>
@@ -140,12 +144,12 @@ app.get('/success', (req, res) => {
 <body>
     <h2>Authorization successful! You can close this window or it will close automatically.</h2>
 </body>
-</html>\`);
+</html>`);
 });
 
 // OAuth callback page
 app.get('/oauth/callback-implicit', (req, res) => {
-    res.send(\`<!DOCTYPE html>
+    res.send(`<!DOCTYPE html>
 <html>
 <head>
     <title>Twitch Authorization</title>
@@ -167,28 +171,42 @@ app.get('/oauth/callback-implicit', (req, res) => {
 <body>
     <h2>Processing authorization... Please wait.</h2>
 </body>
-</html>\`);
+</html>`);
 });
 
 app.post('/oauth/store-token', async (req, res) => {
-    const { token, userId } = req.body;
+    const { token, clientId } = req.body;
     console.log('📡 OAuth token received:', {
         tokenLength: token ? token.length : 0,
-        userId: userId || 'Not provided',
+        clientId: clientId || 'Not provided',
         timestamp: new Date().toISOString()
     });
     
-    if (token) {
-        oauthToken = token;
-        if (userId) {
-            userId = userId;
+    if (!token || !clientId) {
+        return res.status(400).json({ success: false, error: 'Token and Client ID are required' });
+    }
+
+    try {
+        // Fetch user ID from Twitch API
+        const userResponse = await axios.get('https://api.twitch.tv/helix/users', {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Client-ID': clientId
+            }
+        });
+
+        if (userResponse.data && userResponse.data.data.length > 0) {
+            const fetchedUserId = userResponse.data.data[0].id;
+            oauthToken = token;
+            userId = fetchedUserId;
+            console.log('✅ Fetched User ID and stored token successfully. User ID:', userId);
+            res.json({ success: true });
+        } else {
+            throw new Error('Could not fetch Twitch User ID.');
         }
-        
-        console.log('✅ OAuth token stored successfully');
-        res.json({ success: true });
-    } else {
-        console.log('❌ OAuth token storage failed - missing token');
-        res.status(400).json({ success: false, error: 'Token required' });
+    } catch (error) {
+        console.error('❌ Error storing token or fetching user ID:', error.response?.data || error.message);
+        res.status(500).json({ success: false, error: 'Failed to validate token with Twitch API.' });
     }
 });
 
@@ -210,7 +228,7 @@ app.post('/test-rtmp', (req, res) => {
         return res.status(400).json({ success: false, error: 'Stream key is required.' });
     }
 
-    const rtmpUrl = \`rtmp://live.twitch.tv/app/\${streamKey}\`;
+    const rtmpUrl = `rtmp://live.twitch.tv/app/${streamKey}`;
     let responseSent = false;
     let testProcess;
 
@@ -278,9 +296,9 @@ app.post('/update-stream-info', async (req, res) => {
         
         if (category) {
             console.log('🎮 Looking up game ID for category:', category);
-            const gameResponse = await axios.get(\`https://api.twitch.tv/helix/games?name=\${encodeURIComponent(category)}\`, {
+            const gameResponse = await axios.get(`https://api.twitch.tv/helix/games?name=${encodeURIComponent(category)}`, {
                 headers: {
-                    'Authorization': \`Bearer \${oauthToken}\`,
+                    'Authorization': `Bearer ${oauthToken}`,
                     'Client-Id': clientId
                 }
             });
@@ -299,9 +317,9 @@ app.post('/update-stream-info', async (req, res) => {
         
         console.log('📤 Sending update to Twitch API:', updateData);
         
-        const response = await axios.patch(\`https://api.twitch.tv/helix/channels?broadcaster_id=\${userId}\`, updateData, {
+        const response = await axios.patch(`https://api.twitch.tv/helix/channels?broadcaster_id=${userId}`, updateData, {
             headers: {
-                'Authorization': \`Bearer \${oauthToken}\`,
+                'Authorization': `Bearer ${oauthToken}`,
                 'Client-Id': clientId,
                 'Content-Type': 'application/json'
             }
@@ -328,7 +346,7 @@ app.post('/start-stream', (req, res) => {
         return res.status(400).json({ success: false, error: 'Stream key is required.' });
     }
     
-    const rtmpUrl = \`rtmp://live.twitch.tv/app/\${streamKey}\`;
+    const rtmpUrl = `rtmp://live.twitch.tv/app/${streamKey}`;
     console.log('Starting stream to:', rtmpUrl);
 
     const getQualitySettings = (quality) => {
@@ -366,7 +384,7 @@ app.post('/start-stream', (req, res) => {
             '-keyint_min', String(framerate),
             '-sc_threshold', '0',
             
-            '-vf', \`scale=\${settings.width}:\${settings.height}:force_original_aspect_ratio=decrease,pad=\${settings.width}:\${settings.height}:(ow-iw)/2:(oh-ih)/2,fps=\${framerate}\`,
+            '-vf', `scale=${settings.width}:${settings.height}:force_original_aspect_ratio=decrease,pad=${settings.width}:${settings.height}:(ow-iw)/2:(oh-ih)/2,fps=${framerate}`,
             
             '-c:a', 'aac',
             '-b:a', '128k',
@@ -400,7 +418,7 @@ app.post('/start-stream', (req, res) => {
         });
 
         ffmpegProcess.on('close', (code) => {
-            console.log(\`FFmpeg process exited with code \${code}\`);
+            console.log(`FFmpeg process exited with code ${code}`);
             ffmpegProcess = null;
         });
 
@@ -463,7 +481,7 @@ app.post('/stop-stream', (req, res) => {
 });
 
 app.listen(port, () => {
-    console.log(\`Twitch Stream Bridge server running on port \${port}\`);
+    console.log(`Twitch Stream Bridge server running on port ${port}`);
 });
 `,
 

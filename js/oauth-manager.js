@@ -18,10 +18,12 @@ class OAuthManager {
 
         const redirectUri = `http://localhost:3001`;
         const scope = 'channel:manage:broadcast';
-        const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
+        const state = encodeURIComponent(clientId); // Pass client_id in state
+        const authUrl = `https://id.twitch.tv/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}&state=${state}`;
         
         const authWindow = window.open(authUrl, 'twitchAuth', 'width=600,height=700,scrollbars=yes,resizable=yes');
         
+        // This listener is a fallback, but primary logic is now server-side.
         const messageListener = async (event) => {
             if (event.source !== authWindow) {
                 return;
@@ -96,7 +98,7 @@ class OAuthManager {
         try {
             const data = await this.bridgeCommunicator.getOAuthToken();
             
-            if (data.success && data.token) {
+            if (data.success && data.token && data.userId) {
                 this.oauthToken = data.token;
                 this.userId = data.userId;
                 this.uiManager.setAuthStatus('Successfully authorized! You can now change stream title and category.', 'success');
